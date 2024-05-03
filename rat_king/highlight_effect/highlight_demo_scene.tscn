@@ -1,0 +1,105 @@
+[gd_scene load_steps=12 format=3 uid="uid://b31t57a3tmvb3"]
+
+[ext_resource type="Script" path="res://addons/highlight_effect/viewport_fitter.gd" id="1_m7ahn"]
+[ext_resource type="PackedScene" uid="uid://dpdangc4xbxcc" path="res://dungeon/prefabs/dng_world_environment.tscn" id="1_skbnw"]
+[ext_resource type="Shader" path="res://addons/highlight_effect/highlight_effect_viewport.gdshader" id="2_ph237"]
+[ext_resource type="Shader" path="res://addons/highlight_effect/highlight_effect.gdshader" id="3_1eruk"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ogtw3"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_dwoun"]
+resource_local_to_scene = true
+render_priority = -1
+shader = ExtResource("2_ph237")
+
+[sub_resource type="QuadMesh" id="QuadMesh_xv860"]
+flip_faces = true
+size = Vector2(2, 2)
+
+[sub_resource type="GDScript" id="GDScript_p88s1"]
+script/source = "extends Node3D
+
+# scene script!
+
+func _process(_delta:float) -> void:
+	rotation_degrees.y = sin(Time.get_ticks_msec() * 0.0015) * 45.0
+"
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_rf3mh"]
+viewport_path = NodePath("HighlightViewport")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_nkiv2"]
+resource_local_to_scene = true
+render_priority = 0
+shader = ExtResource("3_1eruk")
+shader_parameter/width_outline = 3
+shader_parameter/color_inner = Color(0.909804, 0.462745, 0.592157, 0.282353)
+shader_parameter/color_outline = Color(1, 0, 1, 1)
+shader_parameter/highlighted_depth_tex = SubResource("ViewportTexture_rf3mh")
+
+[sub_resource type="QuadMesh" id="QuadMesh_gtgax"]
+flip_faces = true
+size = Vector2(2, 2)
+
+[node name="HighlightScene" type="Node3D"]
+
+[node name="WorldEnvironment" parent="." instance=ExtResource("1_skbnw")]
+
+[node name="Boxes" type="Node3D" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Boxes"]
+transform = Transform3D(-0.112384, 0.792998, -0.598769, -0.394297, 0.517525, 0.759406, 0.912085, 0.321438, 0.254516, 0, 2, 0)
+
+[node name="Box" type="MeshInstance3D" parent="Boxes"]
+transform = Transform3D(2.0864, -0.261539, 0, 0.261539, 2.0864, 0, 0, 0, 0.815946, 0.661451, -0.918167, 0)
+mesh = SubResource("BoxMesh_ogtw3")
+skeleton = NodePath("../..")
+metadata/_edit_lock_ = true
+
+[node name="Box2" type="MeshInstance3D" parent="Boxes"]
+transform = Transform3D(3.56291, -2.50221, 0, 0.990878, 5.53275, 0.50632, -0.784094, -4.37813, 0.639849, -0.765313, -0.21022, -2.93756)
+mesh = SubResource("BoxMesh_ogtw3")
+skeleton = NodePath("../..")
+metadata/_edit_lock_ = true
+
+[node name="BoxHighlighted" type="MeshInstance3D" parent="Boxes"]
+transform = Transform3D(1.3076, 0.578138, -0.382804, -0.270395, 1.17759, 0.854852, 0.638489, -0.685305, 1.14599, 1.22932, 0.288137, -1.36719)
+layers = 1024
+mesh = SubResource("BoxMesh_ogtw3")
+skeleton = NodePath("../..")
+metadata/_edit_lock_ = true
+
+[node name="HighlightViewport" type="SubViewport" parent="."]
+transparent_bg = true
+handle_input_locally = false
+use_hdr_2d = true
+script = ExtResource("1_m7ahn")
+
+[node name="HighlightCamera3D" type="Camera3D" parent="HighlightViewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4.11502)
+cull_mask = 1024
+
+[node name="HighlightEffectDepth" type="MeshInstance3D" parent="HighlightViewport/HighlightCamera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.11502)
+layers = 1024
+material_override = SubResource("ShaderMaterial_dwoun")
+mesh = SubResource("QuadMesh_xv860")
+skeleton = NodePath("../..")
+
+[node name="CamRotation" type="Node3D" parent="."]
+script = SubResource("GDScript_p88s1")
+
+[node name="Camera3D" type="Camera3D" parent="CamRotation"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4.11502)
+
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="CamRotation/Camera3D"]
+remote_path = NodePath("../../../HighlightViewport/HighlightCamera3D")
+
+[node name="HighlightEffect" type="MeshInstance3D" parent="CamRotation/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.11502)
+material_override = SubResource("ShaderMaterial_nkiv2")
+cast_shadow = 0
+extra_cull_margin = 16384.0
+ignore_occlusion_culling = true
+mesh = SubResource("QuadMesh_gtgax")
+skeleton = NodePath("../../../HighlightViewport")
