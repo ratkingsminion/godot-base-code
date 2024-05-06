@@ -34,7 +34,7 @@ static func register(node: Node) -> void:
 	control.visibility_changed.connect(CheckMouse._remove_on_invisibility.bind(control))
 	
 	# go through the hierarchy and set the mouse filter to pass
-	for c in Helpers.get_all_children(node, true):
+	for c in Helpers.get_all_children(node, false, true):
 		if c is Control:
 			if c.mouse_filter == Control.MOUSE_FILTER_STOP:
 				c.mouse_filter = Control.MOUSE_FILTER_PASS

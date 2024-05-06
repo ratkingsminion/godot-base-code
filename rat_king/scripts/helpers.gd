@@ -30,7 +30,7 @@ static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
 
 ### find nodes and classes
 
-static func get_all_children(node: Node, include_internal := false, include_self := false) -> Array[Node]:
+static func get_all_children(node: Node, include_self := false, include_internal := false) -> Array[Node]:
 	var to_check: Array[Node] = [ node ]
 	var result: Array[Node] = []
 	if include_self:
@@ -64,7 +64,7 @@ static func find_all_class_in_children(node: Node, name_of_class: StringName, in
 static func find_class_in_all_children(node: Node, name_of_class: StringName, include_self := true, include_internal := false) -> Node:
 	if node == null: return null
 	if include_self and node.is_class(name_of_class): return node
-	for child: Node in Helpers.get_all_children(node, include_internal):
+	for child: Node in Helpers.get_all_children(node, false, include_internal):
 		if child.is_class(name_of_class): return child
 	return null
 
@@ -72,7 +72,7 @@ static func find_class_in_all_children(node: Node, name_of_class: StringName, in
 static func find_all_class_in_all_children(node: Node, name_of_class: StringName, include_self := true, include_internal := false) -> Array[Node]:
 	if node == null: return []
 	var result: Array[Node] = []
-	for child: Node in Helpers.get_all_children(node, include_internal, include_self):
+	for child: Node in Helpers.get_all_children(node, include_self, include_internal):
 		if child.is_class(name_of_class): result.push_back(child)
 	return result
 
@@ -119,7 +119,7 @@ static func find_type_in_all_children(node: Node, name_of_type: StringName, incl
 	if include_self and node.is_class(name_of_type): return node
 	if include_self and node.get_script() != null and _classes[name_of_type] == node.get_script().get_path():
 		return node
-	for child: Node in Helpers.get_all_children(node, include_internal):
+	for child: Node in Helpers.get_all_children(node, false, include_internal):
 		if child.is_class(name_of_type): return child
 		var script = child.get_script()
 		if script != null and _classes[name_of_type] == script.get_path(): return child
@@ -129,7 +129,7 @@ static func find_type_in_all_children(node: Node, name_of_type: StringName, incl
 static func find_all_type_in_all_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Array[Node]:
 	if node == null: return []
 	var result: Array[Node] = []
-	for child: Node in Helpers.get_all_children(node, include_internal, include_self):
+	for child: Node in Helpers.get_all_children(node, include_self, include_internal):
 		if child.is_class(name_of_type): result.push_back(child)
 		var script = child.get_script()
 		if script != null and _classes[name_of_type] == script.get_path(): result.push_back(child)
