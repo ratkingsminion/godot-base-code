@@ -93,6 +93,7 @@ class Signal_3:
 ### targeted events, wrapping Godot's signals and user signals
 
 class Targeted_0:
+	var _targets: Array[Object] = []
 	signal event(target: Object)
 	var _signal_id: StringName
 	var _target: String
@@ -104,18 +105,20 @@ class Targeted_0:
 		_signal_id = Event._random_id(16)
 	
 	func register_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
+		if not is_instance_valid(target): return false
 		if not target.has_user_signal(_signal_id): target.add_user_signal(_signal_id)
 		target.connect(_signal_id, callable)
+		_targets.append(target)
 		return true
 	
 	func register(callable: Callable) -> void:
 		event.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
-		if not target.has_user_signal(_signal_id): return false
+		if not is_instance_valid(target): return false
+		if not target.is_connected(_signal_id, callable): return false
 		target.disconnect(_signal_id, callable)
+		_targets.erase(target)
 		return true
 	
 	func unregister(callable: Callable) -> bool:
@@ -124,16 +127,19 @@ class Targeted_0:
 		return true
 
 	func emit_to(target: Object) -> bool:
-		if target != null and target.has_user_signal(_signal_id):
+		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id)
 		event.emit(target)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
-		if target == null: return false
-		return target.has_user_signal(_signal_id)
+		if not is_instance_valid(target): return false
+		if not target.has_user_signal(_signal_id): return false
+		return _targets.has(target)
+		
 
 class Targeted_1:
+	var _targets: Array[Object] = []
 	signal event(target: Object, val)
 	var _signal_id: StringName
 	var _target: String
@@ -145,18 +151,20 @@ class Targeted_1:
 		_signal_id = Event._random_id(16)
 	
 	func register_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
+		if not is_instance_valid(target): return false
 		if not target.has_user_signal(_signal_id): target.add_user_signal(_signal_id)
 		target.connect(_signal_id, callable)
+		_targets.append(target)
 		return true
 	
 	func register(callable: Callable) -> void:
 		event.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
-		if not target.has_user_signal(_signal_id): return false
+		if not is_instance_valid(target): return false
+		if not target.is_connected(_signal_id, callable): return false
 		target.disconnect(_signal_id, callable)
+		_targets.erase(target)
 		return true
 	
 	func unregister(callable: Callable) -> bool:
@@ -165,16 +173,18 @@ class Targeted_1:
 		return true
 
 	func emit_to(target: Object, val) -> bool:
-		if target != null and target.has_user_signal(_signal_id):
+		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id, val)
 		event.emit(target, val)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
-		if target == null: return false
-		return target.has_user_signal(_signal_id)
+		if not is_instance_valid(target): return false
+		if not target.has_user_signal(_signal_id): return false
+		return _targets.has(target)
 
 class Targeted_2:
+	var _targets: Array[Object] = []
 	signal event(target: Object, val1, val2)
 	var _signal_id: StringName
 	var _target: String
@@ -186,18 +196,20 @@ class Targeted_2:
 		_signal_id = Event._random_id(16)
 	
 	func register_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
+		if not is_instance_valid(target): return false
 		if not target.has_user_signal(_signal_id): target.add_user_signal(_signal_id)
 		target.connect(_signal_id, callable)
+		_targets.append(target)
 		return true
 	
 	func register(callable: Callable) -> void:
 		event.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
-		if not target.has_user_signal(_signal_id): return false
+		if not is_instance_valid(target): return false
+		if not target.is_connected(_signal_id, callable): return false
 		target.disconnect(_signal_id, callable)
+		_targets.erase(target)
 		return true
 	
 	func unregister(callable: Callable) -> bool:
@@ -206,16 +218,18 @@ class Targeted_2:
 		return true
 
 	func emit_to(target: Object, val1, val2) -> bool:
-		if target != null and target.has_user_signal(_signal_id):
+		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id, val1, val2)
 		event.emit(target, val1, val2)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
-		if target == null: return false
-		return target.has_user_signal(_signal_id)
+		if not is_instance_valid(target): return false
+		if not target.has_user_signal(_signal_id): return false
+		return _targets.has(target)
 
 class Targeted_3:
+	var _targets: Array[Object] = []
 	signal event(target: Object, val1, val2, val3)
 	var _signal_id: StringName
 	var _target: String
@@ -227,19 +241,21 @@ class Targeted_3:
 		_signal_id = Event._random_id(16)
 	
 	func register_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
+		if not is_instance_valid(target): return false
 		if not target.has_user_signal(_signal_id): target.add_user_signal(_signal_id)
 		target.connect(_signal_id, callable)
 		event.connect(callable)
+		_targets.append(target)
 		return true
 	
 	func register(callable: Callable) -> void:
 		event.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
-		if target == null: return false
-		if not target.has_user_signal(_signal_id): return false
+		if not is_instance_valid(target): return false
+		if not target.is_connected(_signal_id, callable): return false
 		target.disconnect(_signal_id, callable)
+		_targets.erase(target)
 		return true
 	
 	func unregister(callable: Callable) -> bool:
@@ -248,14 +264,15 @@ class Targeted_3:
 		return true
 
 	func emit_to(target: Object, val1, val2, val3) -> bool:
-		if target != null and target.has_user_signal(_signal_id):
+		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id, val1, val2, val3)
 		event.emit(target, val1, val2, val3)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
-		if target == null: return false
-		return target.has_user_signal(_signal_id)
+		if not is_instance_valid(target): return false
+		if not target.has_user_signal(_signal_id): return false
+		return _targets.has(target)
 
 ### string based targeted events
 
@@ -288,7 +305,7 @@ class Targeted_String_0:
 		_target = target
 	
 	func register_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
@@ -297,7 +314,7 @@ class Targeted_String_0:
 		return true
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): return false
 		return _targets[target].disconnect(callable)
 	
@@ -345,7 +362,7 @@ class Targeted_String_1:
 		_params = params
 	
 	func register_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
@@ -354,7 +371,7 @@ class Targeted_String_1:
 		return true
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): return false
 		return _targets[target].disconnect(callable)
 	
@@ -402,7 +419,7 @@ class Targeted_String_2:
 		_params = params
 	
 	func register_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
@@ -411,7 +428,7 @@ class Targeted_String_2:
 		return true
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): return false
 		return _targets[target].disconnect(callable)
 	
@@ -459,7 +476,7 @@ class Targeted_String_3:
 		_params = params
 	
 	func register_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
@@ -468,7 +485,7 @@ class Targeted_String_3:
 		return true
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
-		if target == null: return false
+		if not target: return false
 		if not _targets.has(target): return false
 		return _targets[target].disconnect(callable)
 	
