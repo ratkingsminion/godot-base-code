@@ -38,12 +38,12 @@ func has_data(name: String) -> bool:
 
 func get_data(name: String, default_value):
 	if name == "": printerr("Empty data name not allowed!"); return null
-	if data.has(name): return data[name]
+	if data.has(name) and typeof(default_value) == typeof(data[name]): return data[name]
 	return default_value
 
 func set_data(name: String, value) -> void:
 	if name == "": printerr("Empty data name not allowed!"); return
-	if not data.has(name) or data[name] != value:
+	if not data.has(name) or typeof(value) != typeof(data[name]) or data[name] != value:
 		data[name] = value
 		save()
 
