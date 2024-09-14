@@ -1,6 +1,6 @@
 class_name Physics
 
-static var _tree: SceneTree
+static var _tree: SceneTree = Engine.get_main_loop()
 static var _world_3d: World3D
 
 ## only call these during _physics_process
@@ -23,7 +23,7 @@ static func wait_for() -> void:
 ## local to this node, even the direction!
 static func ray_cast(node: Node3D, from: Vector3, dir: Vector3) -> Dictionary:
 	if node == null: printerr("Trying to cast without node"); return {}
-	var ray_query = PhysicsRayQueryParameters3D.new()
+	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = node.to_global(from)
 	ray_query.to = node.to_global(from + dir)
@@ -32,7 +32,7 @@ static func ray_cast(node: Node3D, from: Vector3, dir: Vector3) -> Dictionary:
 ## local to this node, even the direction!
 static func line_cast(node: Node3D, from: Vector3, to: Vector3) -> Dictionary:
 	if node == null: printerr("Trying to cast without node"); return {}
-	var ray_query = PhysicsRayQueryParameters3D.new()
+	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = node.to_global(from)
 	ray_query.to = node.to_global(to)
@@ -41,7 +41,7 @@ static func line_cast(node: Node3D, from: Vector3, to: Vector3) -> Dictionary:
 ## local to this node, even the direction!
 static func shape_cast(node: Node3D, shape: Shape3D, from: Vector3, dir: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> float:
 	if node == null or shape == null: printerr("Trying to cast without node or shape"); return -1.0
-	var shape_query = PhysicsShapeQueryParameters3D.new()
+	var shape_query := PhysicsShapeQueryParameters3D.new()
 	shape_query.shape = shape
 	shape_query.transform = Transform3D(basis, node.to_global(from))
 	shape_query.margin = shape.margin
@@ -66,7 +66,7 @@ static func is_shape_intersecting(node: Node3D, shape: Shape3D, pos: Vector3, ba
 ## global position and direction
 static func world_3d_ray_cast(from: Vector3, dir: Vector3, mask := 0xFFFFFFFF) -> Dictionary:
 	if _world_3d == null: printerr("Trying to cast without world"); return {}
-	var ray_query = PhysicsRayQueryParameters3D.new()
+	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = from
 	ray_query.to = from + dir
@@ -77,7 +77,7 @@ static func world_3d_ray_cast(from: Vector3, dir: Vector3, mask := 0xFFFFFFFF) -
 ## global position and direction
 static func world_3d_line_cast(from: Vector3, to: Vector3, mask := 0xFFFFFFFF) -> Dictionary:
 	if _world_3d == null: printerr("Trying to cast without world"); return {}
-	var ray_query = PhysicsRayQueryParameters3D.new()
+	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = from
 	ray_query.to = to
