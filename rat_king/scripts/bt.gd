@@ -36,12 +36,18 @@ class_name BT
 ## Behaviour trees created via text also support arguments that are variables from the target,
 ## but they won't get updated after the tree's initialisation.
 
+const debug_color_active_node = Color.YELLOW
+const debug_color_inactive_node = Color.WHITE
 enum Status { Fail, Success, Running }
 
 class N:
 	var bt: BT
 	var parent: N
-	var cur_status: Status
+	var cur_status: Status:
+		get: return cur_status
+		# comment this out if you don't need debug display:
+		set(value): cur_status = value; last_change_time = Time.get_ticks_msec()
+	var last_change_time: int
 	var is_processing: bool
 	var cur_tick := -1
 	
@@ -49,7 +55,10 @@ class N:
 		self.bt = bt
 		self.parent = bt._process_nodes.back() if bt._process_nodes else null
 	
-	func tick():
+	func _name() -> String:
+		return "node"
+	
+	func tick() -> void:
 		if cur_status != Status.Running: _on_start()
 		_on_tick()
 	
@@ -91,6 +100,9 @@ class NComp extends N:
 class NCompSequence extends NComp:
 	var cur_idx: int
 	
+	func _name() -> String:
+		return "sequence"
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NCompSequence.new(other_tree)
 	
@@ -113,6 +125,9 @@ class NCompSequence extends NComp:
 
 class NCompSelector extends NComp:
 	var cur_idx: int
+	
+	func _name() -> String:
+		return "selector"
 	
 	func _on_clone(other_tree: BT) -> N:
 		return NCompSelector.new(other_tree)
@@ -137,6 +152,9 @@ class NCompSelector extends NComp:
 class NCompParallel extends NComp:
 	var cur_success: int
 	
+	func _name() -> String:
+		return "parallel"
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NCompParallel.new(other_tree)
 	
@@ -151,12 +169,15 @@ class NCompParallel extends NComp:
 			Status.Success:
 				cur_success += 1
 				if cur_success == child_count:
-					cur_status= Status.Success
+					cur_status = Status.Success
 			Status.Fail:
 				cur_status = Status.Fail
 
 class NCompRace extends NComp:
 	var cur_fail: int
+	
+	func _name() -> String:
+		return "race"
 	
 	func _on_clone(other_tree: BT) -> N:
 		return NCompRace.new(other_tree)
@@ -174,9 +195,12 @@ class NCompRace extends NComp:
 			Status.Fail:
 				cur_fail += 1
 				if cur_fail == child_count:
-					cur_status= Status.Fail
+					cur_status = Status.Fail
 
 class NCompRandomSelector extends NComp:
+	func _name() -> String:
+		return "random_selector"
+		
 	func _on_clone(other_tree: BT) -> N:
 		return NCompRandomSelector.new(other_tree)
 		
@@ -199,6 +223,9 @@ class NDeco extends N:
 		bt._untick_node(child, true)
 
 class NDecoInvert extends NDeco:
+	func _name() -> String:
+		return "invert"
+		
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoInvert.new(other_tree)
 		
@@ -217,6 +244,9 @@ class NDecoOverride extends NDeco:
 		if fixed_status is Status: self.fixed_status = fixed_status
 		else: self.fixed_status = Status.Success if fixed_status else Status.Fail
 	
+	func _name() -> String:
+		return "override [%s]" % Status.keys()[fixed_status]
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoOverride.new(other_tree, fixed_status)
 	
@@ -224,6 +254,9 @@ class NDecoOverride extends NDeco:
 		cur_status = Status.Running if child.cur_status == Status.Running else fixed_status
 
 class NDecoRepeat extends NDeco:
+	func _name() -> String:
+		return "repeat"
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoRepeat.new(other_tree)
 		
@@ -239,6 +272,9 @@ class NDecoRepeat extends NDeco:
 			cur_status = Status.Fail
 
 class NDecoRetry extends NDeco:
+	func _name() -> String:
+		return "retry"
+		
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoRetry.new(other_tree)
 	
@@ -258,6 +294,9 @@ class NFail extends N:
 		super(bt)
 		cur_status = Status.Fail
 	
+	func _name() -> String:
+		return "fail"
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NFail.new(other_tree)
 
@@ -266,20 +305,29 @@ class NSuccess extends N:
 		super(bt)
 		cur_status = Status.Success
 	
+	func _name() -> String:
+		return "NSuccess"
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NSuccess.new(other_tree)
 
 class NAction extends N:
 	var action_start: Callable
 	var action_run: Callable
+	var name
 	
-	func _init(bt: BT, action_start: Callable, action_run: Callable) -> void:
+	func _init(bt: BT, action_start: Callable, action_run: Callable, name = "action") -> void:
 		super(bt)
 		self.action_start = action_start
 		self.action_run = action_run
+		self.name = name
+	
+	func _name() -> String:
+		if name is Callable: return name.call()
+		return str(name)
 	
 	func _on_clone(other_tree: BT) -> N:
-		return NAction.new(other_tree, action_start, action_run)
+		return NAction.new(other_tree, action_start, action_run, name)
 	
 	func _on_start() -> void:
 		if action_start: action_start.call()
@@ -298,6 +346,12 @@ class NWait extends N:
 		super(bt)
 		self.wait_time = wait_time
 	
+	func _name() -> String:
+		if wait_time is float or wait_time is int or wait_time is String:
+			return "wait [%.2f/%.2f]" % [ cur_time, float(wait_time) ]
+		else:
+			return "wait [%.2f]" % cur_time
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NWait.new(bt, wait_time)
 	
@@ -308,7 +362,7 @@ class NWait extends N:
 		else: cur_time = 1.0
 	
 	func _on_tick() -> void:
-		cur_time -= bt.dt
+		cur_time = max(0.0, cur_time - bt.dt)
 		cur_status = Status.Success if cur_time <= 0.0 else Status.Running
 
 ###
@@ -392,7 +446,7 @@ static func create(target: Object = null, text := "") -> BT:
 					print("Warning: method '", node, "' not found in ", target, "!")
 					continue
 				if l_parts.size() == 1:
-					bt.do(Callable.create(target, node))
+					bt.do(Callable.create(target, node), node)
 				else: # has arguments
 					var arguments := []
 					var cur_str := ""
@@ -424,12 +478,36 @@ static func create(target: Object = null, text := "") -> BT:
 					if arguments.size() > callable.get_argument_count():
 						print("Warning: too many arguments for method", node, ", ignoring the rest")
 						arguments = arguments.slice(0, callable.get_argument_count())
-					bt.do(callable.bindv(arguments))
-	
+					bt.do(callable.bindv(arguments), str(node, " ", arguments))
 	while tabs:
 		if tabs.pop_back(): bt.end()
 	
 	return bt
+
+func generate_string(rich_text := false, root_idx := 0, colored_age_seconds := 0.3) -> String:
+	var info: Dictionary = { "res": "", "rt": rich_text, "cas": colored_age_seconds }
+	if _roots.size() - 1 >= root_idx:
+		_generate_string_add_node(_roots[root_idx], info)
+	return info["res"]
+	
+func _generate_string_add_node(n: N, info: Dictionary, depth := 0, tab_mul := 1) -> void:
+	if not n: return
+	info["res"] += "\t".repeat(depth * tab_mul)
+	var cas: float = info["cas"]
+	var age := clampf((Time.get_ticks_msec() - n.last_change_time) * 0.001, 0.0, cas) / cas if cas > 0.0 else 1.0
+	var colored: bool = info["rt"] and n.cur_status != Status.Fail and age < 1.0
+	if colored:
+		var col := debug_color_active_node.lerp(debug_color_inactive_node, age)
+		info["res"] += "[color=%s]" % col.to_html(false)
+	info["res"] += n._name()
+	if colored: info["res"] += "[/color]"
+	if n is NDeco:
+		info["res"] += " . "
+		_generate_string_add_node(n.child, info, depth, 0)
+	else:
+		info["res"] += "\n"
+		if n is NComp:
+			for c: N in n.children: _generate_string_add_node(c, info, depth + 1)
 
 ###
 
@@ -580,7 +658,7 @@ func selector() -> BT:
 func parallel() -> BT:
 	return register(NCompParallel.new(self))
 
-## tExecute all the children at once until one of them succeeds or all of them fail.
+## Execute all the children at once until one of them succeeds or all of them fail.
 ## Don't forget to close a compositor node with end()
 func race() -> BT:
 	return register(NCompRace.new(self))
@@ -619,16 +697,17 @@ func success() -> BT:
 	return register(NSuccess.new(self))
 
 ## Just do an action
-func do(action: Callable) -> BT:
-	return register(NAction.new(self, Callable(), action))
+func do(action: Callable, debug_name := "action") -> BT:
+	return register(NAction.new(self, Callable(), action, debug_name))
 
 ## Just do an action
-func prep_do(action_start: Callable, action_run: Callable) -> BT:
-	return register(NAction.new(self, action_start, action_run))
+func prep_do(action_start: Callable, action_run: Callable, debug_name := "action") -> BT:
+	return register(NAction.new(self, action_start, action_run, debug_name))
 
 ## Wait either a fixed (if wait_time is a float)
 ## or a dynamic amount of seconds (if wait_time is a Callable returning float)
 func wait(wait_time) -> BT:
-	if wait_time is not float and wait_time is not int and wait_time is not Callable and wait_time is not String:
+	if wait_time is String and str(float(wait_time)) == wait_time: wait_time = float(wait_time)
+	if wait_time is not float and wait_time is not int and wait_time is not Callable:
 		print("Warning: wait() should be called with either a number or a Callable")
 	return register(NWait.new(self, wait_time))
