@@ -367,7 +367,7 @@ static func create(target: Object = null, text := "") -> BT:
 				if l_parts.size() <= 1: bt.override(true)
 				elif l_parts[1].to_lower() in [ "true", "success" ]: bt.override(Status.Success)
 				elif l_parts[1].to_lower() in [ "false", "fail" ]: bt.override(Status.Fail)
-				else: bt.override(target.get(l_parts[1]))
+				else: bt.override(target.get_indexed(l_parts[1]))
 			"repeat":
 				tabs.push_back(false)
 				bt.repeat()
@@ -380,11 +380,11 @@ static func create(target: Object = null, text := "") -> BT:
 				bt.success()
 			"wait":
 				if l_parts.size() >= 3:
-					var from = float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get(l_parts[1])
-					var to = float(l_parts[2]) if str(float(l_parts[2])) == l_parts[2] else target.get(l_parts[2])
+					var from = float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get_indexed(l_parts[1])
+					var to = float(l_parts[2]) if str(float(l_parts[2])) == l_parts[2] else target.get_indexed(l_parts[2])
 					bt.wait(func() -> float: return randf_range(from, to))
 				elif l_parts.size() == 2:
-					bt.wait(float(float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get(l_parts[1])))
+					bt.wait(float(float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get_indexed(l_parts[1])))
 				else:
 					bt.wait(1.0)
 			_: # self-defined node
@@ -408,7 +408,7 @@ static func create(target: Object = null, text := "") -> BT:
 								elif str(float(cur_str)) == cur_str: arguments.append(float(cur_str))
 								elif cur_str == "true": arguments.append(true)
 								elif cur_str == "false": arguments.append(false)
-								else: arguments.append(target.get(cur_str))
+								else: arguments.append(target.get_indexed(cur_str))
 								cur_str = ""
 						elif not cur_str_token and l_stripped[l_idx] in [ "\"", "'" ]:
 							cur_str_token = l_stripped[l_idx]
