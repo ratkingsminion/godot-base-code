@@ -4,21 +4,7 @@ class_name BT
 ##
 ## Usage:
 ##
-## 	# feed a text...
-## 	var txt := "
-## parallel
-## 	repeat
-## 		sequence
-## 			set_next_pos
-## 			walk_to_next_pos
-##			wait 0.1 0.5
-##	repeat
-##		sequence
-##			change_color
-##			wait 0.75"
-##	_bt = BT.create(self, txt)
-##	
-##	 #...or create the tree directly
+## # Either create the tree directly:
 ##	_bt = BT.create() \
 ##		.parallel() \
 ##			.repeat() \
@@ -32,6 +18,23 @@ class_name BT
 ##					.do(change_color) \
 ##					.wait(0.75) \
 ##				.end()
+##
+## 	# Or feed a text:
+## 	var text := "
+## parallel
+## 	repeat
+## 		sequence
+## 			set_next_pos
+## 			walk_to_next_pos
+##			wait 0.1 0.5
+##	repeat
+##		sequence
+##			change_color
+##			wait 0.75"
+##	_bt = BT.create(self, text)
+##	
+## Behaviour trees created via text also support arguments that are variables from the target,
+## but they won't get updated after the tree's initialisation.
 
 enum Status { Fail, Success, Running }
 
@@ -326,10 +329,12 @@ static func create(target: Object = null, text := "") -> BT:
 	var bt := BT.new()
 	bt.target = target
 	
-	# TODO interpret text
 	var lines := text.replace("\r", "").split("\n")
 	var tabs := []
 	for l in lines:
+		if not target:
+			print("Warning: target missing for text-based behaviour tree!")
+			break
 		var l_stripped := l.strip_edges()
 		if not l_stripped: continue
 		if l_stripped.begins_with("#") or l_stripped.begins_with("//"): continue
@@ -360,8 +365,9 @@ static func create(target: Object = null, text := "") -> BT:
 			"override":
 				tabs.push_back(false)
 				if l_parts.size() <= 1: bt.override(true)
-				elif l_parts[1].to_lower() in [ "false", "fail" ]: bt.override(false)
-				else: bt.override(true)
+				elif l_parts[1].to_lower() in [ "true", "success" ]: bt.override(Status.Success)
+				elif l_parts[1].to_lower() in [ "false", "fail" ]: bt.override(Status.Fail)
+				else: bt.override(target.get(l_parts[1]))
 			"repeat":
 				tabs.push_back(false)
 				bt.repeat()
@@ -374,11 +380,11 @@ static func create(target: Object = null, text := "") -> BT:
 				bt.success()
 			"wait":
 				if l_parts.size() >= 3:
-					var from := float(l_parts[1])
-					var to := float(l_parts[2])
+					var from = float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get(l_parts[1])
+					var to = float(l_parts[2]) if str(float(l_parts[2])) == l_parts[2] else target.get(l_parts[2])
 					bt.wait(func() -> float: return randf_range(from, to))
 				elif l_parts.size() == 2:
-					bt.wait(float(l_parts[1]))
+					bt.wait(float(float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get(l_parts[1])))
 				else:
 					bt.wait(1.0)
 			_: # self-defined node
@@ -400,9 +406,9 @@ static func create(target: Object = null, text := "") -> BT:
 							if cur_str:
 								if str(int(cur_str)) == cur_str: arguments.append(int(cur_str))
 								elif str(float(cur_str)) == cur_str: arguments.append(float(cur_str))
-								elif cur_str.to_lower() == "true": arguments.append(true)
-								elif cur_str.to_lower() == "false": arguments.append(true)
-								else: arguments.append(cur_str)
+								elif cur_str == "true": arguments.append(true)
+								elif cur_str == "false": arguments.append(false)
+								else: arguments.append(target.get(cur_str))
 								cur_str = ""
 						elif not cur_str_token and l_stripped[l_idx] in [ "\"", "'" ]:
 							cur_str_token = l_stripped[l_idx]
@@ -417,10 +423,8 @@ static func create(target: Object = null, text := "") -> BT:
 					var callable := Callable.create(target, l_parts[0])
 					if arguments.size() > callable.get_argument_count():
 						print("Warning: too many arguments for method", node, ", ignoring the rest")
-						while arguments.size() > callable.get_argument_count():
-							arguments.remove_at(arguments.size() - 1)
+						arguments = arguments.slice(0, callable.get_argument_count())
 					bt.do(callable.bindv(arguments))
-					
 	
 	while tabs:
 		if tabs.pop_back(): bt.end()
