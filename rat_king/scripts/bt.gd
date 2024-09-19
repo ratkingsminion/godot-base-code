@@ -19,7 +19,7 @@ class_name BT
 ##					.wait(0.75) \
 ##				.end()
 ##
-## 	# Or feed a text:
+## # Or feed a text:
 ## 	var text := "
 ## parallel
 ## 	repeat
