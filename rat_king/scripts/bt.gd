@@ -1,9 +1,7 @@
 class_name BT
 
-## A simple behaviour tree implementation
-##
-## Usage:
-##
+## This is a simple behaviour tree implementation. Usage:
+## ```
 ## # Either create the tree directly:
 ##	_bt = BT.create() \
 ##		.parallel() \
@@ -32,21 +30,37 @@ class_name BT
 ##			change_color
 ##			wait 0.75"
 ##	_bt = BT.create(self, text)
-##	
+## ```
+## To actually run the behaviour tree, call `_bt.tick()` whenever you want it to update - for realtime
+## games this is usually every frame, but for turn-based games this could be on each turn.
+##
 ## Behaviour trees created via text also support variables from the target as arguments. If you want
 ## these to be updated after the tree's initialisation, give them a $ prefix (this is probably very
 ## costly performance-wise, so only use this for testing purposes).
+##
+## Composite nodes (more than 0 children): `sequence`, `selector`, `parallal`, `race`, `random_selector`
+## Decorator nodes (1 child): `invert`, `override`, `repeat`, `retry`
+## Other nodes (0 children): `fail`, ``success`, `log`, `wait`, `do`
+##
+## `do` is the tree node that allows using your own custom behaviours. Your behaviour function should
+## return `BT.Status.Success`, `BT.Status.Fail` or `BT.Status.Running`, or a `bool`. If the function
+## is `void` or returns `null`, the status is set to Success; in all other cases the internal status
+## is not changed.
+## Of course you can also create your own custom nodes by inheriting from the N class.
+## The `do` node uses the `NAction` class.
 
 const debug_color_active_node = Color.YELLOW
 const debug_color_inactive_node = Color.WHITE
 const symbol_lambda = "$"
+const whitespaces = [ " ", "\t", "\n" ]
+const string_tokens = [ "\"", "'" ]
 const digits = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
 enum Status { Fail, Success, Running }
 
 class N:
 	var bt: BT
 	var parent: N
-	var cur_status: Status:
+	var cur_status: Status = Status.Success:
 		get: return cur_status
 		# comment this out if you don't need debug display:
 		set(value): cur_status = value; last_change_time = Time.get_ticks_msec()
@@ -317,33 +331,6 @@ class NSuccess extends N:
 	func _on_clone(other_tree: BT) -> N:
 		return NSuccess.new(other_tree)
 
-class NAction extends N:
-	var action_start: Callable
-	var action_run: Callable
-	var name
-	
-	func _init(bt: BT, action_start: Callable, action_run: Callable, name = "action") -> void:
-		super(bt)
-		self.action_start = action_start
-		self.action_run = action_run
-		self.name = name
-	
-	func _name() -> String:
-		if name is Callable: return name.call()
-		return str(name)
-	
-	func _on_clone(other_tree: BT) -> N:
-		return NAction.new(other_tree, action_start, action_run, name)
-	
-	func _on_start() -> void:
-		if action_start: action_start.call()
-	
-	func _on_tick() -> void:
-		var res = action_run.call()
-		if res == null: cur_status = Status.Success
-		elif res is Status: cur_status = res
-		elif res is bool: cur_status = Status.Success if res else Status.Fail
-
 class NWait extends N:
 	var wait_time
 	var cur_time: float
@@ -373,6 +360,56 @@ class NWait extends N:
 		cur_time = max(0.0, cur_time - bt.dt)
 		cur_status = Status.Success if cur_time <= 0.0 else Status.Running
 
+class NSay extends N:
+	# "log" and "print" are already in use by Godot, so it's "say" here.
+	var message
+	var cur_message
+	
+	func _init(bt: BT, message) -> void:
+		super(bt)
+		self.message = message
+	
+	func _name() -> String:
+		if message is Callable: return "say [%s:%s]" % [ symbol_lambda, cur_message ]
+		return str("say [", message, "]")
+	
+	func _on_clone(other_tree: BT) -> N:
+		return NSay.new(bt, message)
+	
+	func _on_start() -> void:
+		if message is Callable: cur_message = message.call()
+		else: cur_message = str(message)
+	
+	func _on_tick() -> void:
+		print(cur_message)
+
+class NAction extends N:
+	var action_start: Callable
+	var action_run: Callable
+	var name
+	
+	func _init(bt: BT, action_start: Callable, action_run: Callable, name = "action") -> void:
+		super(bt)
+		self.action_start = action_start
+		self.action_run = action_run
+		self.name = name
+	
+	func _name() -> String:
+		if name is Callable: return name.call()
+		return str(name)
+	
+	func _on_clone(other_tree: BT) -> N:
+		return NAction.new(other_tree, action_start, action_run, name)
+	
+	func _on_start() -> void:
+		if action_start: action_start.call()
+	
+	func _on_tick() -> void:
+		var res = action_run.call()
+		if res == null: cur_status = Status.Success
+		elif res is Status: cur_status = res
+		elif res is bool: cur_status = Status.Success if res else Status.Fail
+
 ###
 
 var target: Object
@@ -390,7 +427,11 @@ var _tick_counter := 0
 static func create(target: Object = null, text := "") -> BT:
 	var bt := BT.new()
 	bt.target = target
-	
+	if text: bt.parse_text(text)
+	return bt
+
+func parse_text(text: String) -> BT:
+	if not text: return
 	var lines := text.replace("\r", "").split("\n")
 	var tabs := []
 	for l in lines:
@@ -402,35 +443,35 @@ static func create(target: Object = null, text := "") -> BT:
 		if l_stripped.begins_with("#") or l_stripped.begins_with("//"): continue
 		var cur_tab_count := l.length() - l.dedent().length()
 		while tabs.size() > cur_tab_count:
-			if tabs.pop_back(): bt.end()
+			if tabs.pop_back(): end()
 		var l_parts := l_stripped.split(" ", false)
 		var node := l_parts[0]
 		match node:
 			"sequence":
 				tabs.push_back(true)
-				bt.sequence();
+				sequence();
 			"selector":
 				tabs.push_back(true)
-				bt.selector()
+				selector()
 			"parallel":
 				tabs.push_back(true)
-				bt.parallel()
+				parallel()
 			"race":
 				tabs.push_back(true)
-				bt.race()
+				race()
 			"random_selector":
 				tabs.push_back(true)
-				bt.random_selector()
+				random_selector()
 			"invert":
 				tabs.push_back(false)
-				bt.invert()
+				invert()
 			"override":
 				tabs.push_back(false)
-				if l_parts.size() <= 1: bt.override(true)
+				if l_parts.size() <= 1: override(true)
 				if l_parts.size() > 2:
 					print("Warning: too many arguments for override node, ignoring the rest")
-				elif l_parts[1].to_lower() in [ "true", "success" ]: bt.override(Status.Success)
-				elif l_parts[1].to_lower() in [ "false", "fail" ]: bt.override(Status.Fail)
+				elif l_parts[1].to_lower() in [ "true", "success" ]: override(Status.Success)
+				elif l_parts[1].to_lower() in [ "false", "fail" ]: override(Status.Fail)
 				elif l_parts[1].begins_with(symbol_lambda):
 					var dyn_arg := l_parts[1].substr(1)
 					var dyn_call := func():
@@ -439,37 +480,50 @@ static func create(target: Object = null, text := "") -> BT:
 						elif res is String and res.to_lower() in [ "true", "success" ]: return Status.Success
 						elif res is String and res.to_lower() in [ "false", "fail" ]: return Status.Fail
 						else: return Status.Success if res else Status.Fail
-					bt.override(dyn_call)
-				else: bt.override(target.get_indexed(l_parts[1]))
+					override(dyn_call)
+				else: override(target.get_indexed(l_parts[1]))
 			"repeat":
 				tabs.push_back(false)
-				bt.repeat()
+				repeat()
 			"retry":
 				tabs.push_back(false)
-				bt.retry()
+				retry()
 			"fail":
-				bt.fail()
+				fail()
 			"succeess":
-				bt.success()
+				success()
+			"say":
+				if l_parts.size() <= 1:
+					continue
+				elif l_parts[1].begins_with(symbol_lambda):
+					var dyn_arg := l_parts[1].substr(1)
+					var dyn_call := func(): return target.get_indexed(dyn_arg)
+					say(dyn_call)
+				elif l_parts[1][0] in string_tokens:
+					var start_idx := l_stripped.find(l_parts[1]) + 1
+					var len := l_stripped.length() - start_idx - (1 if l_stripped[l_stripped.length() - 1] in string_tokens else 0)
+					say(l_stripped.substr(start_idx, len))
+				else:
+					say(target.get_indexed(l_parts[1]))
 			"wait":
 				if l_parts.size() > 2:
 					print("Warning: too many arguments for wait node, ignoring the rest")
 				if l_parts.size() == 1:
-					bt.wait(1.0)
+					wait(1.0)
 				elif l_parts[1][0] in digits:
-					bt.wait(float(l_parts[1]))
+					wait(float(l_parts[1]))
 				elif l_parts[1].begins_with(symbol_lambda):
 					var dyn_arg := l_parts[1].substr(1)
 					var dyn_call := func(): return float(target.get_indexed(dyn_arg))
-					bt.wait(dyn_call)
+					wait(dyn_call)
 				else:
-					bt.wait(float(target.get_indexed(l_parts[1])))
+					wait(float(target.get_indexed(l_parts[1])))
 			_: # custom node
 				if not target.has_method(node):
 					print("Warning: method '", node, "' not found in ", target, "!")
 					continue
 				if l_parts.size() == 1:
-					bt.do(Callable.create(target, node), node)
+					do(Callable.create(target, node), node)
 				else: # has arguments
 					var arguments := []
 					var cur_str := ""
@@ -479,7 +533,7 @@ static func create(target: Object = null, text := "") -> BT:
 					var has_dyn_args := -1
 					var arg_names: Array[String] = []
 					while l_idx < l_len:
-						if not cur_str_token and (l_idx == l_len - 1 or l_stripped[l_idx] in [ " ", "\t", "\n" ]):
+						if not cur_str_token and (l_idx == l_len - 1 or l_stripped[l_idx] in whitespaces):
 							if l_idx == l_len - 1:
 								cur_str += l_stripped[l_idx]
 							if cur_str: # done reading, parse now
@@ -494,7 +548,7 @@ static func create(target: Object = null, text := "") -> BT:
 									if has_dyn_args < 0: has_dyn_args = arguments.size()
 								else: arguments.append(target.get_indexed(cur_str))
 								cur_str = ""
-						elif not cur_str_token and l_stripped[l_idx] in [ "\"", "'" ]:
+						elif not cur_str_token and l_stripped[l_idx] in string_tokens:
 							cur_str_token = l_stripped[l_idx]
 						elif cur_str_token and l_stripped[l_idx] == cur_str_token:
 							arguments.append(cur_str)
@@ -520,11 +574,11 @@ static func create(target: Object = null, text := "") -> BT:
 							return callable.bindv(dyn_args).call() # throws error, callable.callv(dyn_args) does not - better be explicit
 					else:
 						dyn_call = callable.bindv(arguments)
-					bt.do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
+					do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
 	while tabs:
-		if tabs.pop_back(): bt.end()
+		if tabs.pop_back(): end()
 	
-	return bt
+	return self
 
 func generate_string(rich_text := false, root_idx := 0, colored_age_seconds := 0.3) -> String:
 	var info: Dictionary = { "res": "", "rt": rich_text, "cas": colored_age_seconds }
@@ -739,13 +793,9 @@ func fail() -> BT:
 func success() -> BT:
 	return register(NSuccess.new(self))
 
-## Do an action
-func do(action: Callable, debug_name := "action") -> BT:
-	return register(NAction.new(self, Callable(), action, debug_name))
-
-## Do an action, but with preparation
-func prep_do(action_start: Callable, action_run: Callable, debug_name := "action") -> BT:
-	return register(NAction.new(self, action_start, action_run, debug_name))
+## Print some text, either fixed or dynamically from a Callable
+func say(message) -> BT:
+	return register(NSay.new(self, message))
 
 ## Wait either a fixed (if wait_time is a float) or a dynamic amount of seconds
 ## (if wait_time is a Callable returning float)
@@ -754,3 +804,11 @@ func wait(wait_time) -> BT:
 	if wait_time is not float and wait_time is not int and wait_time is not Callable:
 		print("Warning: wait() should be called with either a number or a Callable")
 	return register(NWait.new(self, wait_time))
+
+## Do an action
+func do(action: Callable, debug_name := "action") -> BT:
+	return register(NAction.new(self, Callable(), action, debug_name))
+
+## Do an action, but with preparation
+func prep_do(action_start: Callable, action_run: Callable, debug_name := "action") -> BT:
+	return register(NAction.new(self, action_start, action_run, debug_name))
