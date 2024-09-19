@@ -48,6 +48,11 @@ class_name BT
 ## is not changed.
 ## Of course you can also create your own custom nodes by inheriting from the N class.
 ## The `do` node uses the `NAction` class.
+##
+## Originally a port of https://github.com/ratkingsminion/simple-behaviour-tree
+## Inspired by fluid BT: https://github.com/ashblue/fluid-behavior-tree
+## Also by PandaBT: http://www.pandabt.com/documentation/2.0.0
+## About behaviour trees: https://www.gamedeveloper.com/programming/behavior-trees-for-ai-how-they-work
 
 const debug_color_active_node = Color.YELLOW
 const debug_color_inactive_node = Color.WHITE
