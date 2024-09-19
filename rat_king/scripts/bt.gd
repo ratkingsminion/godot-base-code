@@ -10,7 +10,7 @@ class_name BT
 ##			.repeat() \
 ##				.sequence() \
 ##					.do(set_next_pos) \
-##					.do(walk_to_next_pos) \
+##					.do(walk_to_next_pos.bind(walk_speed)) \
 ##					.wait(func() -> float: return randf_range(0.0, 1.0)) \
 ##				.end() \
 ##			.repeat() \
@@ -25,19 +25,22 @@ class_name BT
 ## 	repeat
 ## 		sequence
 ## 			set_next_pos
-## 			walk_to_next_pos
-##			wait 0.1 0.5
+## 			walk_to_next_pos walk_speed
+##			wait $wait_time
 ##	repeat
 ##		sequence
 ##			change_color
 ##			wait 0.75"
 ##	_bt = BT.create(self, text)
 ##	
-## Behaviour trees created via text also support arguments that are variables from the target,
-## but they won't get updated after the tree's initialisation.
+## Behaviour trees created via text also support variables from the target as arguments. If you want
+## these to be updated after the tree's initialisation, give them a $ prefix (this is probably very
+## costly performance-wise, so only use this for testing purposes).
 
 const debug_color_active_node = Color.YELLOW
 const debug_color_inactive_node = Color.WHITE
+const symbol_lambda = "$"
+const digits = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
 enum Status { Fail, Success, Running }
 
 class N:
@@ -236,22 +239,25 @@ class NDecoInvert extends NDeco:
 			_: cur_status = child.curStatus
 
 class NDecoOverride extends NDeco:
-	var fixed_status: Status
+	var status
 	
-	func _init(bt: BT, fixed_status) -> void:
+	func _init(bt: BT, status) -> void:
 		super(bt)
-		if fixed_status == null: self.fixed_status = Status.Success
-		if fixed_status is Status: self.fixed_status = fixed_status
-		else: self.fixed_status = Status.Success if fixed_status else Status.Fail
+		if status == null: self.status = Status.Success
+		elif status is Status or status is Callable: self.status = status
+		else: self.status = Status.Success if status else Status.Fail
 	
 	func _name() -> String:
-		return "override [%s]" % Status.keys()[fixed_status]
+		return "override [" + (str(symbol_lambda, ":", Status.keys()[cur_status]) if status is Callable else Status.keys()[status]) + "]"
 	
 	func _on_clone(other_tree: BT) -> N:
-		return NDecoOverride.new(other_tree, fixed_status)
+		return NDecoOverride.new(other_tree, status)
 	
 	func _on_child_report(child: N) -> void:
-		cur_status = Status.Running if child.cur_status == Status.Running else fixed_status
+		if child.cur_status == Status.Running:
+			cur_status = Status.Running
+		else: 
+			cur_status = status.call() if status is Callable else status
 
 class NDecoRepeat extends NDeco:
 	func _name() -> String:
@@ -349,6 +355,8 @@ class NWait extends N:
 	func _name() -> String:
 		if wait_time is float or wait_time is int or wait_time is String:
 			return "wait [%.2f/%.2f]" % [ cur_time, float(wait_time) ]
+		elif wait_time is Callable:
+			return "wait [%s:%.2f]" % [ symbol_lambda, cur_time ]
 		else:
 			return "wait [%.2f]" % cur_time
 	
@@ -419,8 +427,19 @@ static func create(target: Object = null, text := "") -> BT:
 			"override":
 				tabs.push_back(false)
 				if l_parts.size() <= 1: bt.override(true)
+				if l_parts.size() > 2:
+					print("Warning: too many arguments for override node, ignoring the rest")
 				elif l_parts[1].to_lower() in [ "true", "success" ]: bt.override(Status.Success)
 				elif l_parts[1].to_lower() in [ "false", "fail" ]: bt.override(Status.Fail)
+				elif l_parts[1].begins_with(symbol_lambda):
+					var dyn_arg := l_parts[1].substr(1)
+					var dyn_call := func():
+						var res = target.get_indexed(dyn_arg)
+						if res is Status: return res
+						elif res is String and res.to_lower() in [ "true", "success" ]: return Status.Success
+						elif res is String and res.to_lower() in [ "false", "fail" ]: return Status.Fail
+						else: return Status.Success if res else Status.Fail
+					bt.override(dyn_call)
 				else: bt.override(target.get_indexed(l_parts[1]))
 			"repeat":
 				tabs.push_back(false)
@@ -433,15 +452,19 @@ static func create(target: Object = null, text := "") -> BT:
 			"succeess":
 				bt.success()
 			"wait":
-				if l_parts.size() >= 3:
-					var from = float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get_indexed(l_parts[1])
-					var to = float(l_parts[2]) if str(float(l_parts[2])) == l_parts[2] else target.get_indexed(l_parts[2])
-					bt.wait(func() -> float: return randf_range(from, to))
-				elif l_parts.size() == 2:
-					bt.wait(float(float(l_parts[1]) if str(float(l_parts[1])) == l_parts[1] else target.get_indexed(l_parts[1])))
-				else:
+				if l_parts.size() > 2:
+					print("Warning: too many arguments for wait node, ignoring the rest")
+				if l_parts.size() == 1:
 					bt.wait(1.0)
-			_: # self-defined node
+				elif l_parts[1][0] in digits:
+					bt.wait(float(l_parts[1]))
+				elif l_parts[1].begins_with(symbol_lambda):
+					var dyn_arg := l_parts[1].substr(1)
+					var dyn_call := func(): return float(target.get_indexed(dyn_arg))
+					bt.wait(dyn_call)
+				else:
+					bt.wait(float(target.get_indexed(l_parts[1])))
+			_: # custom node
 				if not target.has_method(node):
 					print("Warning: method '", node, "' not found in ", target, "!")
 					continue
@@ -453,15 +476,22 @@ static func create(target: Object = null, text := "") -> BT:
 					var cur_str_token := ""
 					var l_len := l_stripped.length()
 					var l_idx := node.length()
+					var has_dyn_args := -1
+					var arg_names: Array[String] = []
 					while l_idx < l_len:
 						if not cur_str_token and (l_idx == l_len - 1 or l_stripped[l_idx] in [ " ", "\t", "\n" ]):
 							if l_idx == l_len - 1:
 								cur_str += l_stripped[l_idx]
-							if cur_str:
+							if cur_str: # done reading, parse now
+								arg_names.append(cur_str)
 								if str(int(cur_str)) == cur_str: arguments.append(int(cur_str))
-								elif str(float(cur_str)) == cur_str: arguments.append(float(cur_str))
+								elif cur_str[0] in digits: arguments.append(float(cur_str))
 								elif cur_str == "true": arguments.append(true)
 								elif cur_str == "false": arguments.append(false)
+								elif cur_str.begins_with(symbol_lambda):
+									cur_str = cur_str.substr(1)
+									arguments.append(func(): return target.get_indexed(cur_str)) # evaluated later!
+									if has_dyn_args < 0: has_dyn_args = arguments.size()
 								else: arguments.append(target.get_indexed(cur_str))
 								cur_str = ""
 						elif not cur_str_token and l_stripped[l_idx] in [ "\"", "'" ]:
@@ -473,12 +503,24 @@ static func create(target: Object = null, text := "") -> BT:
 						else:
 							cur_str += l_stripped[l_idx]
 						l_idx += 1
-					#print("arguments for ", node, ": ", arguments)
-					var callable := Callable.create(target, l_parts[0])
-					if arguments.size() > callable.get_argument_count():
+					var callable := Callable.create(target, node)
+					var arg_count := callable.get_argument_count()
+					if arguments.size() > arg_count:
 						print("Warning: too many arguments for method", node, ", ignoring the rest")
-						arguments = arguments.slice(0, callable.get_argument_count())
-					bt.do(callable.bindv(arguments), str(node, " ", arguments))
+						arguments = arguments.slice(0, arg_count)
+						arg_names = arg_names.slice(0, arg_count)
+					elif arguments.size() < arg_count:
+						print("Warning: not enough arguments, will throw error!")
+					var dyn_call
+					if has_dyn_args >= 0 and has_dyn_args <= arguments.size():
+						var dyn_args := []
+						dyn_call = func():
+							dyn_args.clear()
+							for a in arguments: dyn_args.append(a.call() if a is Callable else a)
+							return callable.bindv(dyn_args).call() # throws error, callable.callv(dyn_args) does not - better be explicit
+					else:
+						dyn_call = callable.bindv(arguments)
+					bt.do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
 	while tabs:
 		if tabs.pop_back(): bt.end()
 	
@@ -581,7 +623,8 @@ func reset() -> void:
 func register(n: N) -> BT:
 	if _process_nodes:
 		var last: N = _process_nodes.back()
-		if last is NComp: last.add_child(n)
+		if last is NComp:
+			last.add_child(n)
 		elif last is NDeco:
 			last.child = n
 			_process_nodes.pop_back()
@@ -678,7 +721,7 @@ func invert() -> BT:
 func override(status) -> BT:
 	return register(NDecoOverride.new(self, status))
 
- ## Repeat the child until it returns Status.Fail
+## Repeat the child until it returns Status.Fail
 func repeat() -> BT:
 	return register(NDecoRepeat.new(self))
 
@@ -696,16 +739,16 @@ func fail() -> BT:
 func success() -> BT:
 	return register(NSuccess.new(self))
 
-## Just do an action
+## Do an action
 func do(action: Callable, debug_name := "action") -> BT:
 	return register(NAction.new(self, Callable(), action, debug_name))
 
-## Just do an action
+## Do an action, but with preparation
 func prep_do(action_start: Callable, action_run: Callable, debug_name := "action") -> BT:
 	return register(NAction.new(self, action_start, action_run, debug_name))
 
-## Wait either a fixed (if wait_time is a float)
-## or a dynamic amount of seconds (if wait_time is a Callable returning float)
+## Wait either a fixed (if wait_time is a float) or a dynamic amount of seconds
+## (if wait_time is a Callable returning float)
 func wait(wait_time) -> BT:
 	if wait_time is String and str(float(wait_time)) == wait_time: wait_time = float(wait_time)
 	if wait_time is not float and wait_time is not int and wait_time is not Callable:
