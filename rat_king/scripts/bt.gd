@@ -417,8 +417,12 @@ class NAction extends N:
 
 ###
 
+## The target is the Godot `Node` that contains the behaviour methods, usually
 var target: Object
-var dt: float # delta time
+## The delta time, fed to the tree via the `tick()` method, so the tree nodes
+## (for example `BT.NWait`) can use it internally
+var dt: float
+## Is true if the tree is currently being evaluated via the `tick()` method
 var is_ticking := false
 
 var _nodes_to_remove: Array[N] = []
@@ -429,12 +433,16 @@ var _tick_counter := 0
 
 ###
 
+## Create a new behaviour tree, optionally feed it a text. The target is the
+## Godot Node that contains the behaviour methods, usually.
 static func create(target: Object = null, text := "") -> BT:
 	var bt := BT.new()
 	bt.target = target
 	if text: bt.parse_text(text)
 	return bt
 
+## Parse a string, adds the nodes inside to the tree. The BT needs to have a
+## `target` defined if you use this.
 func parse_text(text: String) -> BT:
 	if not text: return
 	var lines := text.replace("\r", "").split("\n")
@@ -585,6 +593,8 @@ func parse_text(text: String) -> BT:
 	
 	return self
 
+## Generate a debug string for the current state of the tree - use it in a `Label`
+## or a `RichTextLabel` anytime you wish.
 func generate_string(rich_text := false, root_idx := 0, colored_age_seconds := 0.3) -> String:
 	var info: Dictionary = { "res": "", "rt": rich_text, "cas": colored_age_seconds }
 	if _roots.size() - 1 >= root_idx:
@@ -612,6 +622,9 @@ func _generate_string_add_node(n: N, info: Dictionary, depth := 0, tab_mul := 1)
 
 ###
 
+## Call this everytime you want to evaluate the behaviour tree; if the returned
+## `Status` is `BT.Status.Running`, you know that it wasn't evaluated completely
+## but is "stuck" at one of the nodes.
 func tick(delta_time: float, root_idx := 0) -> Status:
 	if not _roots: return Status.Fail
 	
@@ -679,6 +692,9 @@ func reset() -> void:
 	_process_nodes.clear()
 	_nodes_to_remove.clear()
 
+## Register a node (of type `BT.N`); usually you use the shortcut functions
+## (`sequence()`, `invert()`, `do()`, etc.) for that, but you can also create
+## your own nodes and add them to the tree this way
 func register(n: N) -> BT:
 	if _process_nodes:
 		var last: N = _process_nodes.back()
@@ -693,6 +709,8 @@ func register(n: N) -> BT:
 		_process_nodes.append(n)
 	return self
 
+## Inserts a tree from another `BT` into this one, copying all the nodes. Useful
+## if you want to create slightly different behaviours for different agents
 func insert_tree(other: BT) -> BT:
 	if not other or not other._roots:
 		return self
@@ -772,19 +790,19 @@ func random_selector() -> BT:
 
 ### decorators
 
-## Invert the child's Status, if it's not running
+## Invert the child's `Status`, if it's not `Running`
 func invert() -> BT:
 	return register(NDecoInvert.new(self))
 
-## Override the child's Status, if it's not running
+## Override the child's `Status`, if it's not `Running`; can be a function/`Callable`
 func override(status) -> BT:
 	return register(NDecoOverride.new(self, status))
 
-## Repeat the child until it returns Status.Fail
+## Repeat the child until it returns `Status.Fail`
 func repeat() -> BT:
 	return register(NDecoRepeat.new(self))
 
-## Repeat the child until it returns Status.Success
+## Repeat the child until it returns `Status.Success`
 func retry() -> BT:
 	return register(NDecoRetry.new(self))
 
@@ -798,12 +816,12 @@ func fail() -> BT:
 func success() -> BT:
 	return register(NSuccess.new(self))
 
-## Print some text, either fixed or dynamically from a Callable
+## Print some text, either fixed or dynamically from a function/`Callable`
 func say(message) -> BT:
 	return register(NSay.new(self, message))
 
-## Wait either a fixed (if wait_time is a float) or a dynamic amount of seconds
-## (if wait_time is a Callable returning float)
+## Wait either a fixed (`wait_time` is `float`) or a dynamic amount of seconds (`wait_time`
+## is a function/`Callable` returning `float`)
 func wait(wait_time) -> BT:
 	if wait_time is String and str(float(wait_time)) == wait_time: wait_time = float(wait_time)
 	if wait_time is not float and wait_time is not int and wait_time is not Callable:
@@ -817,3 +835,8 @@ func do(action: Callable, debug_name := "action") -> BT:
 ## Do an action, but with preparation
 func prep_do(action_start: Callable, action_run: Callable, debug_name := "action") -> BT:
 	return register(NAction.new(self, action_start, action_run, debug_name))
+
+## Same as `do()`, but using `check()` looks nicer when creating the tree and
+## the `action` is a condition (e.g. something like `is_player_visible`)
+func check(action: Callable, debug_name := "action") -> BT:
+	return register(NAction.new(self, Callable(), action, debug_name))
