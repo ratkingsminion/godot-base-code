@@ -38,7 +38,7 @@ class_name BT
 ## these to be updated after the tree's initialisation, give them a $ prefix (this is probably very
 ## costly performance-wise, so only use this for testing purposes).
 ##
-## Composite nodes (more than 0 children): `sequence`, `selector`, `parallal`, `race`, `random_selector`
+## Composite nodes (more than 0 children): `sequence`, `selector`, `parallel`, `race`, `random_selector`
 ## Decorator nodes (1 child): `invert`, `override`, `repeat`, `retry`
 ## Other nodes (0 children): `fail`, ``success`, `log`, `wait`, `do`
 ##
@@ -46,7 +46,7 @@ class_name BT
 ## return `BT.Status.Success`, `BT.Status.Fail` or `BT.Status.Running`, or a `bool`. If the function
 ## is `void` or returns `null`, the status is set to Success; in all other cases the internal status
 ## is not changed.
-## Of course you can also create your own custom nodes by inheriting from the N class.
+## Of course you can also create your own custom nodes by inheriting from the `BT.N` class.
 ## The `do` node uses the `NAction` class.
 ##
 ## Originally a port of https://github.com/ratkingsminion/simple-behaviour-tree
@@ -481,7 +481,7 @@ func parse_text(text: String) -> BT:
 			"override":
 				tabs.push_back(false)
 				if l_parts.size() <= 1: override(true)
-				if l_parts.size() > 2:
+				elif l_parts.size() > 2:
 					print("Warning: too many arguments for override node, ignoring the rest")
 				elif l_parts[1].to_lower() in [ "true", "success" ]: override(Status.Success)
 				elif l_parts[1].to_lower() in [ "false", "fail" ]: override(Status.Fail)
@@ -534,8 +534,7 @@ func parse_text(text: String) -> BT:
 			_: # custom node
 				if not target.has_method(node):
 					print("Warning: method '", node, "' not found in ", target, "!")
-					continue
-				if l_parts.size() == 1:
+				elif l_parts.size() == 1:
 					do(Callable.create(target, node), node)
 				else: # has arguments
 					var arguments := []
