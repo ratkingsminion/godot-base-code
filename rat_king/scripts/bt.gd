@@ -480,11 +480,14 @@ func parse_text(text: String) -> BT:
 				invert()
 			"override":
 				tabs.push_back(false)
-				if l_parts.size() <= 1: override(true)
-				elif l_parts.size() > 2:
+				if l_parts.size() > 2:
 					print("Warning: too many arguments for override node, ignoring the rest")
-				elif l_parts[1].to_lower() in [ "true", "success" ]: override(Status.Success)
-				elif l_parts[1].to_lower() in [ "false", "fail" ]: override(Status.Fail)
+				if l_parts.size() == 1:
+					override(true)
+				elif l_parts[1].to_lower() in [ "true", "success" ]:
+					override(Status.Success)
+				elif l_parts[1].to_lower() in [ "false", "fail" ]:
+					override(Status.Fail)
 				elif l_parts[1].begins_with(symbol_lambda):
 					var dyn_arg := l_parts[1].substr(1)
 					var dyn_call := func():
@@ -494,7 +497,8 @@ func parse_text(text: String) -> BT:
 						elif res is String and res.to_lower() in [ "false", "fail" ]: return Status.Fail
 						else: return Status.Success if res else Status.Fail
 					override(dyn_call)
-				else: override(target.get_indexed(l_parts[1]))
+				else:
+					override(target.get_indexed(l_parts[1]))
 			"repeat":
 				tabs.push_back(false)
 				repeat()
@@ -506,7 +510,9 @@ func parse_text(text: String) -> BT:
 			"succeess":
 				success()
 			"say":
-				if l_parts.size() <= 1:
+				if l_parts.size() > 2:
+					print("Warning: too many arguments for say node, ignoring the rest")
+				if l_parts.size() == 1:
 					continue
 				elif l_parts[1].begins_with(symbol_lambda):
 					var dyn_arg := l_parts[1].substr(1)
