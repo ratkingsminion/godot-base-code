@@ -56,11 +56,13 @@ class_name BT
 
 const debug_color_active_node = Color.YELLOW
 const debug_color_inactive_node = Color.WHITE
-const symbol_lambda = "$"
-const whitespaces = [ " ", "\t", "\n" ]
-const string_tokens = [ "\"", "'" ]
-const digits = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
+
 enum Status { Fail, Success, Running }
+
+const _symbol_lambda = "$"
+const _whitespaces = [ " ", "\t", "\n" ]
+const _string_tokens = [ "\"", "'" ]
+const _digits = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
 
 class N:
 	var bt: BT
@@ -222,10 +224,10 @@ class NCompRace extends NComp:
 class NCompRandomSelector extends NComp:
 	func _name() -> String:
 		return "random_selector"
-		
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NCompRandomSelector.new(other_tree)
-		
+	
 	func _on_start() -> void:
 		bt._tick_node(children.pick_random())
 	
@@ -247,10 +249,10 @@ class NDeco extends N:
 class NDecoInvert extends NDeco:
 	func _name() -> String:
 		return "invert"
-		
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoInvert.new(other_tree)
-		
+	
 	func _on_child_report(child: N) -> void:
 		match child.cur_status:
 			Status.Success: cur_status = Status.Fail
@@ -267,7 +269,7 @@ class NDecoOverride extends NDeco:
 		else: self.status = Status.Success if status else Status.Fail
 	
 	func _name() -> String:
-		return "override [" + (str(symbol_lambda, ":", Status.keys()[cur_status]) if status is Callable else Status.keys()[status]) + "]"
+		return "override [" + (str(_symbol_lambda, ":", Status.keys()[cur_status]) if status is Callable else Status.keys()[status]) + "]"
 	
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoOverride.new(other_tree, status)
@@ -275,7 +277,7 @@ class NDecoOverride extends NDeco:
 	func _on_child_report(child: N) -> void:
 		if child.cur_status == Status.Running:
 			cur_status = Status.Running
-		else: 
+		else:
 			cur_status = status.call() if status is Callable else status
 
 class NDecoRepeat extends NDeco:
@@ -284,7 +286,7 @@ class NDecoRepeat extends NDeco:
 	
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoRepeat.new(other_tree)
-		
+	
 	func _on_start() -> void:
 		cur_status = Status.Running
 	
@@ -299,7 +301,7 @@ class NDecoRepeat extends NDeco:
 class NDecoRetry extends NDeco:
 	func _name() -> String:
 		return "retry"
-		
+	
 	func _on_clone(other_tree: BT) -> N:
 		return NDecoRetry.new(other_tree)
 	
@@ -331,7 +333,7 @@ class NSuccess extends N:
 		cur_status = Status.Success
 	
 	func _name() -> String:
-		return "NSuccess"
+		return "success"
 	
 	func _on_clone(other_tree: BT) -> N:
 		return NSuccess.new(other_tree)
@@ -348,7 +350,7 @@ class NWait extends N:
 		if wait_time is float or wait_time is int or wait_time is String:
 			return "wait [%.2f/%.2f]" % [ cur_time, float(wait_time) ]
 		elif wait_time is Callable:
-			return "wait [%s:%.2f]" % [ symbol_lambda, cur_time ]
+			return "wait [%s:%.2f]" % [ _symbol_lambda, cur_time ]
 		else:
 			return "wait [%.2f]" % cur_time
 	
@@ -375,7 +377,7 @@ class NSay extends N:
 		self.message = message
 	
 	func _name() -> String:
-		if message is Callable: return "say [%s:%s]" % [ symbol_lambda, cur_message ]
+		if message is Callable: return "say [%s:%s]" % [ _symbol_lambda, cur_message ]
 		return str("say [", message, "]")
 	
 	func _on_clone(other_tree: BT) -> N:
@@ -445,6 +447,36 @@ static func create(target: Object = null, text := "") -> BT:
 ## `target` defined if you use this.
 func parse_text(text: String) -> BT:
 	if not text: return
+	
+	var parse_args := func(line: String) -> Array[String]:
+		var res: Array[String] = []
+		var cur := ""
+		var cur_string_token := ""
+		for s in line:
+			if not cur_string_token and s in _whitespaces:
+				if cur:
+					res.append(cur)
+					cur = ""
+			elif cur_string_token and s == cur_string_token:
+				cur += s
+				res.append(cur)
+				cur = ""
+			elif not cur_string_token and s in _string_tokens:
+				cur_string_token = s
+				cur += s
+			else:
+				cur += s
+		if cur: res.append(cur)
+		return res
+	var get_str := func(arg: String) -> String:
+		if not arg: return ""
+		var length := arg.length()
+		var token := arg[0]
+		if not token in _string_tokens: return ""
+		return arg.substr(1, length - (2 if length > 1 and arg[length - 1] == token else 1))
+	var is_num := func(arg: String) -> bool:
+		return arg and arg[0] in _digits
+	
 	var lines := text.replace("\r", "").split("\n")
 	var tabs := []
 	for l in lines:
@@ -457,8 +489,8 @@ func parse_text(text: String) -> BT:
 		var cur_tab_count := l.length() - l.dedent().length()
 		while tabs.size() > cur_tab_count:
 			if tabs.pop_back(): end()
-		var l_parts := l_stripped.split(" ", false)
-		var node := l_parts[0]
+		var l_args := parse_args.call(l_stripped) as Array[String]
+		var node := l_args.pop_front() as String
 		match node:
 			"sequence":
 				tabs.push_back(true)
@@ -480,16 +512,16 @@ func parse_text(text: String) -> BT:
 				invert()
 			"override":
 				tabs.push_back(false)
-				if l_parts.size() > 2:
+				if l_args.size() > 1:
 					print("Warning: too many arguments for override node, ignoring the rest")
-				if l_parts.size() == 1:
+				if l_args.size() == 0:
 					override(true)
-				elif l_parts[1].to_lower() in [ "true", "success" ]:
+				elif l_args[0].to_lower() in [ "true", "success" ]:
 					override(Status.Success)
-				elif l_parts[1].to_lower() in [ "false", "fail" ]:
+				elif l_args[0].to_lower() in [ "false", "fail" ]:
 					override(Status.Fail)
-				elif l_parts[1].begins_with(symbol_lambda):
-					var dyn_arg := l_parts[1].substr(1)
+				elif l_args[0].begins_with(_symbol_lambda):
+					var dyn_arg := l_args[1].substr(1)
 					var dyn_call := func():
 						var res = target.get_indexed(dyn_arg)
 						if res is Status: return res
@@ -498,7 +530,7 @@ func parse_text(text: String) -> BT:
 						else: return Status.Success if res else Status.Fail
 					override(dyn_call)
 				else:
-					override(target.get_indexed(l_parts[1]))
+					override(target.get_indexed(l_args[1]))
 			"repeat":
 				tabs.push_back(false)
 				repeat()
@@ -510,71 +542,52 @@ func parse_text(text: String) -> BT:
 			"succeess":
 				success()
 			"say":
-				if l_parts.size() > 2:
+				if l_args.size() > 1:
 					print("Warning: too many arguments for say node, ignoring the rest")
-				if l_parts.size() == 1:
+				if l_args.size() == 0:
+					print("Warning: say node needs a parameter, ignored")
 					continue
-				elif l_parts[1].begins_with(symbol_lambda):
-					var dyn_arg := l_parts[1].substr(1)
+				elif l_args[0].begins_with(_symbol_lambda):
+					var dyn_arg := l_args[0].substr(1)
 					var dyn_call := func(): return target.get_indexed(dyn_arg)
 					say(dyn_call)
-				elif l_parts[1][0] in string_tokens:
-					var start_idx := l_stripped.find(l_parts[1]) + 1
-					var len := l_stripped.length() - start_idx - (1 if l_stripped[l_stripped.length() - 1] in string_tokens else 0)
-					say(l_stripped.substr(start_idx, len))
+				elif get_str.call(l_args[0]):
+					say(get_str.call(l_args[0]))
 				else:
-					say(target.get_indexed(l_parts[1]))
+					say(target.get_indexed(l_args[0]))
 			"wait":
-				if l_parts.size() > 2:
+				if l_args.size() > 1:
 					print("Warning: too many arguments for wait node, ignoring the rest")
-				if l_parts.size() == 1:
+				if l_args.size() == 0:
 					wait(1.0)
-				elif l_parts[1][0] in digits:
-					wait(float(l_parts[1]))
-				elif l_parts[1].begins_with(symbol_lambda):
-					var dyn_arg := l_parts[1].substr(1)
+				elif is_num.call(l_args[0]):
+					wait(float(l_args[0]))
+				elif l_args[0].begins_with(_symbol_lambda):
+					var dyn_arg := l_args[0].substr(1)
 					var dyn_call := func(): return float(target.get_indexed(dyn_arg))
 					wait(dyn_call)
 				else:
-					wait(float(target.get_indexed(l_parts[1])))
+					wait(float(target.get_indexed(l_args[0])))
 			_: # custom node
 				if not target.has_method(node):
 					print("Warning: method '", node, "' not found in ", target, "!")
-				elif l_parts.size() == 1:
+				elif l_args.size() == 0:
 					do(Callable.create(target, node), node)
 				else: # has arguments
 					var arguments := []
-					var cur_str := ""
-					var cur_str_token := ""
-					var l_len := l_stripped.length()
-					var l_idx := node.length()
 					var has_dyn_args := -1
 					var arg_names: Array[String] = []
-					while l_idx < l_len:
-						if not cur_str_token and (l_idx == l_len - 1 or l_stripped[l_idx] in whitespaces):
-							if l_idx == l_len - 1:
-								cur_str += l_stripped[l_idx]
-							if cur_str: # done reading, parse now
-								arg_names.append(cur_str)
-								if str(int(cur_str)) == cur_str: arguments.append(int(cur_str))
-								elif cur_str[0] in digits: arguments.append(float(cur_str))
-								elif cur_str == "true": arguments.append(true)
-								elif cur_str == "false": arguments.append(false)
-								elif cur_str.begins_with(symbol_lambda):
-									cur_str = cur_str.substr(1)
-									arguments.append(func(): return target.get_indexed(cur_str)) # evaluated later!
-									if has_dyn_args < 0: has_dyn_args = arguments.size()
-								else: arguments.append(target.get_indexed(cur_str))
-								cur_str = ""
-						elif not cur_str_token and l_stripped[l_idx] in string_tokens:
-							cur_str_token = l_stripped[l_idx]
-						elif cur_str_token and l_stripped[l_idx] == cur_str_token:
-							arguments.append(cur_str)
-							cur_str = ""
-							cur_str_token = ""
-						else:
-							cur_str += l_stripped[l_idx]
-						l_idx += 1
+					for a in l_args:
+						arg_names.append(a)
+						if str(int(a)) == a: arguments.append(int(a))
+						elif is_num.call(a): arguments.append(float(a))
+						elif a == "true": arguments.append(true)
+						elif a == "false": arguments.append(false)
+						elif a.begins_with(_symbol_lambda):
+							a = a.substr(1)
+							arguments.append(func(): return target.get_indexed(a)) # evaluated later!
+							if has_dyn_args < 0: has_dyn_args = arguments.size()
+						else: arguments.append(target.get_indexed(a))
 					var callable := Callable.create(target, node)
 					var arg_count := callable.get_argument_count()
 					if arguments.size() > arg_count:
@@ -605,7 +618,7 @@ func generate_string(rich_text := false, root_idx := 0, colored_age_seconds := 0
 	if _roots.size() - 1 >= root_idx:
 		_generate_string_add_node(_roots[root_idx], info)
 	return info["res"]
-	
+
 func _generate_string_add_node(n: N, info: Dictionary, depth := 0, tab_mul := 1) -> void:
 	if not n: return
 	info["res"] += "\t".repeat(depth * tab_mul)
@@ -646,7 +659,7 @@ func tick(delta_time: float, root_idx := 0) -> Status:
 		while _tick_process_node_idx < _process_nodes.size(): # list can increase during iteration
 			_process_nodes[_tick_process_node_idx].tick()
 			_tick_process_node_idx += 1
-
+		
 		is_ticking = false
 		
 		_tick_process_node_idx -= 1
@@ -742,7 +755,7 @@ func insert_tree(other: BT) -> BT:
 		
 		if cloned_root is NComp:
 			_process_nodes.pop_back()
-	
+
 	return self
 
 ## Always call this at the end of a compositor node's children list
@@ -843,5 +856,5 @@ func prep_do(action_start: Callable, action_run: Callable, debug_name := "action
 
 ## Same as `do()`, but using `check()` looks nicer when creating the tree and
 ## the `action` is a condition (e.g. something like `is_player_visible`)
-func check(action: Callable, debug_name := "action") -> BT:
+func check(action: Callable, debug_name := "condition") -> BT:
 	return register(NAction.new(self, Callable(), action, debug_name))
