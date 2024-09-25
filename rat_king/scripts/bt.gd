@@ -367,14 +367,17 @@ class NWait extends N:
 		cur_time = max(0.0, cur_time - bt.dt)
 		cur_status = Status.Success if cur_time <= 0.0 else Status.Running
 
+## "log" and "print" are already in use by Godot, so it's "say" here.
 class NSay extends N:
-	# "log" and "print" are already in use by Godot, so it's "say" here.
 	var message
 	var cur_message
 	
 	func _init(bt: BT, message) -> void:
 		super(bt)
 		self.message = message
+		if message is Callable:
+			# don't evaluate on _init, to reduce unwanted side effects
+			cur_message = "<?>"
 	
 	func _name() -> String:
 		if message is Callable: return "say [%s:%s]" % [ _symbol_lambda, cur_message ]
@@ -448,35 +451,6 @@ static func create(target: Object = null, text := "") -> BT:
 func parse_text(text: String) -> BT:
 	if not text: return
 	
-	var parse_args := func(line: String) -> Array[String]:
-		var res: Array[String] = []
-		var cur := ""
-		var cur_string_token := ""
-		for s in line:
-			if not cur_string_token and s in _whitespaces:
-				if cur:
-					res.append(cur)
-					cur = ""
-			elif cur_string_token and s == cur_string_token:
-				cur += s
-				res.append(cur)
-				cur = ""
-			elif not cur_string_token and s in _string_tokens:
-				cur_string_token = s
-				cur += s
-			else:
-				cur += s
-		if cur: res.append(cur)
-		return res
-	var get_str := func(arg: String) -> String:
-		if not arg: return ""
-		var length := arg.length()
-		var token := arg[0]
-		if not token in _string_tokens: return ""
-		return arg.substr(1, length - (2 if length > 1 and arg[length - 1] == token else 1))
-	var is_num := func(arg: String) -> bool:
-		return arg and arg[0] in _digits
-	
 	var lines := text.replace("\r", "").split("\n")
 	var tabs := []
 	for l in lines:
@@ -489,7 +463,7 @@ func parse_text(text: String) -> BT:
 		var cur_tab_count := l.length() - l.dedent().length()
 		while tabs.size() > cur_tab_count:
 			if tabs.pop_back(): end()
-		var l_args := parse_args.call(l_stripped) as Array[String]
+		var l_args := _parse_args(l_stripped)
 		var node := l_args.pop_front() as String
 		match node:
 			"sequence":
@@ -549,10 +523,9 @@ func parse_text(text: String) -> BT:
 					continue
 				elif l_args[0].begins_with(_symbol_lambda):
 					var dyn_arg := l_args[0].substr(1)
-					var dyn_call := func(): return target.get_indexed(dyn_arg)
-					say(dyn_call)
-				elif get_str.call(l_args[0]):
-					say(get_str.call(l_args[0]))
+					say(func(): return target.get_indexed(dyn_arg))
+				elif _is_str(l_args[0]):
+					say(_get_str(l_args[0]))
 				else:
 					say(target.get_indexed(l_args[0]))
 			"wait":
@@ -560,12 +533,11 @@ func parse_text(text: String) -> BT:
 					print("Warning: too many arguments for wait node, ignoring the rest")
 				if l_args.size() == 0:
 					wait(1.0)
-				elif is_num.call(l_args[0]):
+				elif _is_num(l_args[0]):
 					wait(float(l_args[0]))
 				elif l_args[0].begins_with(_symbol_lambda):
 					var dyn_arg := l_args[0].substr(1)
-					var dyn_call := func(): return float(target.get_indexed(dyn_arg))
-					wait(dyn_call)
+					wait(func(): return float(target.get_indexed(dyn_arg)))
 				else:
 					wait(float(target.get_indexed(l_args[0])))
 			_: # custom node
@@ -580,7 +552,7 @@ func parse_text(text: String) -> BT:
 					for a in l_args:
 						arg_names.append(a)
 						if str(int(a)) == a: arguments.append(int(a))
-						elif is_num.call(a): arguments.append(float(a))
+						elif _is_num(a): arguments.append(float(a))
 						elif a == "true": arguments.append(true)
 						elif a == "false": arguments.append(false)
 						elif a.begins_with(_symbol_lambda):
@@ -610,6 +582,40 @@ func parse_text(text: String) -> BT:
 		if tabs.pop_back(): end()
 	
 	return self
+
+func _parse_args(line: String) -> Array[String]:
+	var res: Array[String] = []
+	var cur := ""
+	var cur_string_token := ""
+	for s in line:
+		if not cur_string_token and s in _whitespaces:
+			if cur:
+				res.append(cur)
+				cur = ""
+		elif cur_string_token and s == cur_string_token:
+			cur += s
+			res.append(cur)
+			cur = ""
+		elif not cur_string_token and s in _string_tokens:
+			cur_string_token = s
+			cur += s
+		else:
+			cur += s
+	if cur: res.append(cur)
+	return res
+
+func _is_str(arg: String) -> bool:
+	return arg and arg[0] in _string_tokens
+
+func _get_str(arg: String) -> String:
+	if not arg: return ""
+	var length := arg.length()
+	var token := arg[0]
+	if not token in _string_tokens: return ""
+	return arg.substr(1, length - (2 if length > 1 and arg[length - 1] == token else 1))
+
+func _is_num(arg: String) -> bool:
+	return arg and arg[0] in _digits
 
 ## Generate a debug string for the current state of the tree - use it in a `Label`
 ## or a `RichTextLabel` anytime you wish.
