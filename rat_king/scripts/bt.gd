@@ -37,10 +37,12 @@ class_name BT
 ## Behaviour trees created via text also support variables from the target as arguments. If you want
 ## these to be updated after the tree's initialisation, give them a $ prefix (this is probably very
 ## costly performance-wise, so only use this for testing purposes).
+## Text-based behaviour trees also support the node `tree`. If it's at the root, it creates a tree.
+## If you use inside a tree, it will insert the tree. This might help with organizing.
 ##
 ## Composite nodes (more than 0 children): `sequence`, `selector`, `parallel`, `race`, `random_selector`
-## Decorator nodes (1 child): `invert`, `override`, `repeat`, `retry`
-## Other nodes (0 children): `fail`, ``success`, `log`, `wait`, `do`
+## Decorator nodes (1 child): `ignore`, `invert`, `override`, `repeat`, `retry`
+## Other nodes (0 children): `nothing`, `fail`, `success`, `log`, `wait`, `do`/`prep_do`/`check`
 ##
 ## `do` is the tree node that allows using your own custom behaviours. Your behaviour function should
 ## return `BT.Status.Success`, `BT.Status.Fail` or `BT.Status.Running`, or a `bool`. If the function
@@ -57,7 +59,7 @@ class_name BT
 const debug_color_active_node = Color.YELLOW
 const debug_color_inactive_node = Color.WHITE
 
-enum Status { Fail, Success, Running }
+enum Status { Fail, Success, Running, Nothing }
 
 const _symbol_lambda = "$"
 const _whitespaces = [ " ", "\t", "\n" ]
@@ -67,7 +69,7 @@ const _digits = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
 class N:
 	var bt: BT
 	var parent: N
-	var cur_status: Status = Status.Success:
+	var cur_status: Status = Status.Nothing:
 		get: return cur_status
 		# comment this out if you don't need debug display:
 		set(value): cur_status = value; last_change_time = Time.get_ticks_msec()
@@ -190,7 +192,7 @@ class NCompParallel extends NComp:
 	
 	func _on_child_report(child: N) -> void:
 		match child.cur_status:
-			Status.Success:
+			Status.Success, Status.Nothing:
 				cur_success += 1
 				if cur_success == child_count:
 					cur_status = Status.Success
@@ -216,7 +218,7 @@ class NCompRace extends NComp:
 		match child.cur_status:
 			Status.Success:
 				cur_status = Status.Success
-			Status.Fail:
+			Status.Fail, Status.Nothing:
 				cur_fail += 1
 				if cur_fail == child_count:
 					cur_status = Status.Fail
@@ -245,6 +247,16 @@ class NDeco extends N:
 	
 	func _on_remove() -> void:
 		bt._untick_node(child, true)
+
+class NDecoIgnore extends NDeco:
+	func _name() -> String:
+		return "ignore"
+	
+	func _on_clone(other_tree: BT) -> N:
+		return NDecoIgnore.new(other_tree)
+	
+	func _on_child_report(child: N) -> void:
+		cur_status = Status.Nothing
 
 class NDecoInvert extends NDeco:
 	func _name() -> String:
@@ -316,6 +328,17 @@ class NDecoRetry extends NDeco:
 		if child.cur_status == Status.Success:
 			cur_status = Status.Success
 
+class NNothing extends N:
+	func _init(bt: BT) -> void:
+		super(bt)
+		cur_status = Status.Nothing
+	
+	func _name() -> String:
+		return "nothing"
+	
+	func _on_clone(other_tree: BT) -> N:
+		return NNothing.new(other_tree)
+
 class NFail extends N:
 	func _init(bt: BT) -> void:
 		super(bt)
@@ -355,7 +378,7 @@ class NWait extends N:
 			return "wait [%.2f]" % cur_time
 	
 	func _on_clone(other_tree: BT) -> N:
-		return NWait.new(bt, wait_time)
+		return NWait.new(other_tree, wait_time)
 	
 	func _on_start() -> void:
 		if wait_time is Callable: cur_time = wait_time.call()
@@ -384,7 +407,7 @@ class NSay extends N:
 		return str("say [", message, "]")
 	
 	func _on_clone(other_tree: BT) -> N:
-		return NSay.new(bt, message)
+		return NSay.new(other_tree, message)
 	
 	func _on_start() -> void:
 		if message is Callable: cur_message = message.call()
@@ -443,57 +466,101 @@ var _tick_counter := 0
 static func create(target: Object = null, text := "") -> BT:
 	var bt := BT.new()
 	bt.target = target
-	if text: bt.parse_text(text)
-	return bt
+	return bt.parse_text(text) if text else bt
 
 ## Parse a string, adds the nodes inside to the tree. The BT needs to have a
 ## `target` defined if you use this.
 func parse_text(text: String) -> BT:
 	if not text: return
 	
+	if not target:
+		print("Warning: target missing for text-based behaviour tree!")
+		return self
+	
+	var tbts: Dictionary = {} # Dictionary[String->BT]
+	var tbt := BT.create(target)
 	var lines := text.replace("\r", "").split("\n")
 	var tabs := []
+	
 	for l in lines:
-		if not target:
-			print("Warning: target missing for text-based behaviour tree!")
-			break
 		var l_stripped := l.strip_edges()
 		if not l_stripped: continue
 		if l_stripped.begins_with("#") or l_stripped.begins_with("//"): continue
 		var cur_tab_count := l.length() - l.dedent().length()
 		while tabs.size() > cur_tab_count:
-			if tabs.pop_back(): end()
+			if tabs.pop_back():
+				tbt.end()
+		if not tabs and tbt._roots:
+			tbt = BT.create(target)
 		var l_args := _parse_args(l_stripped)
 		var node := l_args.pop_front() as String
+		var l_args_count := l_args.size()
 		match node:
+			"tree":
+				if l_args_count == 0:
+					print("Warning: ", node, " node needs an argument")
+					if tabs: tbt.nothing()
+					continue
+				if l_args_count > 1:
+					print("Warning: too many arguments for ", node, " node, ignoring the rest")
+				if not tabs:
+					if tbts.has(l_args[0]):
+						print("Warning: ", node, " ", l_args[0], " already defined, ignored")
+						continue
+					if tbt._roots:
+						tbt = BT.create(target)
+					tbts[l_args[0]] = tbt
+				else:
+					if not tbts.has(l_args[0]):
+						print("Warning: ", node, " ", l_args[0], " does not exist, can't be inserted")
+						tbt.nothing()
+						continue
+					tbt.insert_tree(tbts[l_args[0]])
 			"sequence":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(true)
-				sequence();
+				tbt.sequence();
 			"selector":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(true)
-				selector()
+				tbt.selector()
 			"parallel":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(true)
-				parallel()
+				tbt.parallel()
 			"race":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(true)
-				race()
+				tbt.race()
 			"random_selector":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(true)
-				random_selector()
-			"invert":
+				tbt.random_selector()
+			"ignore":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(false)
-				invert()
+				tbt.ignore()
+			"invert":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
+				tabs.push_back(false)
+				tbt.invert()
 			"override":
 				tabs.push_back(false)
-				if l_args.size() > 1:
-					print("Warning: too many arguments for override node, ignoring the rest")
-				if l_args.size() == 0:
-					override(true)
+				if l_args_count > 1:
+					print("Warning: too many arguments for ", node, " node, ignoring the rest")
+				if l_args_count == 0:
+					tbt.override(true)
 				elif l_args[0].to_lower() in [ "true", "success" ]:
-					override(Status.Success)
+					tbt.override(Status.Success)
 				elif l_args[0].to_lower() in [ "false", "fail" ]:
-					override(Status.Fail)
+					tbt.override(Status.Fail)
 				elif l_args[0].begins_with(_symbol_lambda):
 					var dyn_arg := l_args[1].substr(1)
 					var dyn_call := func():
@@ -502,49 +569,58 @@ func parse_text(text: String) -> BT:
 						elif res is String and res.to_lower() in [ "true", "success" ]: return Status.Success
 						elif res is String and res.to_lower() in [ "false", "fail" ]: return Status.Fail
 						else: return Status.Success if res else Status.Fail
-					override(dyn_call)
+					tbt.override(dyn_call)
 				else:
-					override(target.get_indexed(l_args[1]))
+					tbt.override(target.get_indexed(l_args[1]))
 			"repeat":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(false)
-				repeat()
+				tbt.repeat()
 			"retry":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(false)
-				retry()
+				tbt.retry()
 			"fail":
-				fail()
-			"succeess":
-				success()
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
+				tbt.fail()
+			"success":
+				if l_args_count > 0:
+					print("Warning: ignoring arguments for ", node, " node")
+				tbt.success()
 			"say":
-				if l_args.size() > 1:
-					print("Warning: too many arguments for say node, ignoring the rest")
-				if l_args.size() == 0:
-					print("Warning: say node needs a parameter, ignored")
+				if l_args_count == 0:
+					print("Warning: ", node, " node needs an argument, ignored")
+					tbt.nothing()
 					continue
+				if l_args_count > 1:
+					print("Warning: too many arguments for ", node, " node, ignoring the rest")
 				elif l_args[0].begins_with(_symbol_lambda):
 					var dyn_arg := l_args[0].substr(1)
-					say(func(): return target.get_indexed(dyn_arg))
+					tbt.say(func(): return target.get_indexed(dyn_arg))
 				elif _is_str(l_args[0]):
-					say(_get_str(l_args[0]))
+					tbt.say(_get_str(l_args[0]))
 				else:
-					say(target.get_indexed(l_args[0]))
+					tbt.say(target.get_indexed(l_args[0]))
 			"wait":
-				if l_args.size() > 1:
-					print("Warning: too many arguments for wait node, ignoring the rest")
-				if l_args.size() == 0:
-					wait(1.0)
+				if l_args_count > 1:
+					print("Warning: too many arguments for ", node, "t node, ignoring the rest")
+				if l_args_count == 0:
+					tbt.wait(1.0)
 				elif _is_num(l_args[0]):
-					wait(float(l_args[0]))
+					tbt.wait(float(l_args[0]))
 				elif l_args[0].begins_with(_symbol_lambda):
 					var dyn_arg := l_args[0].substr(1)
-					wait(func(): return float(target.get_indexed(dyn_arg)))
+					tbt.wait(func(): return float(target.get_indexed(dyn_arg)))
 				else:
-					wait(float(target.get_indexed(l_args[0])))
+					tbt.wait(float(target.get_indexed(l_args[0])))
 			_: # custom node
 				if not target.has_method(node):
 					print("Warning: method '", node, "' not found in ", target, "!")
-				elif l_args.size() == 0:
-					do(Callable.create(target, node), node)
+				elif l_args_count == 0:
+					tbt.do(Callable.create(target, node), node)
 				else: # has arguments
 					var arguments := []
 					var has_dyn_args := -1
@@ -563,7 +639,7 @@ func parse_text(text: String) -> BT:
 					var callable := Callable.create(target, node)
 					var arg_count := callable.get_argument_count()
 					if arguments.size() > arg_count:
-						print("Warning: too many arguments for method", node, ", ignoring the rest")
+						print("Warning: too many arguments for method '", node, "', ignoring the rest")
 						arguments = arguments.slice(0, arg_count)
 						arg_names = arg_names.slice(0, arg_count)
 					elif arguments.size() < arg_count:
@@ -577,9 +653,11 @@ func parse_text(text: String) -> BT:
 							return callable.bindv(dyn_args).call() # throws error, callable.callv(dyn_args) does not - better be explicit
 					else:
 						dyn_call = callable.bindv(arguments)
-					do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
+					tbt.do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
 	while tabs:
-		if tabs.pop_back(): end()
+		if tabs.pop_back(): tbt.end()
+	
+	insert_tree(tbt)
 	
 	return self
 
@@ -652,7 +730,7 @@ func _generate_string_add_node(n: N, info: Dictionary, depth := 0, tab_mul := 1)
 func tick(delta_time: float, root_idx := 0) -> Status:
 	if not _roots: return Status.Fail
 	
-	self.dt = delta_time
+	dt = delta_time
 	
 	is_ticking = true
 	if not _process_nodes:
@@ -740,24 +818,21 @@ func insert_tree(other: BT) -> BT:
 		return self
 	
 	for other_root: N in other._roots:
-		var cloned_root: N = other_root.clone(self, _process_nodes.back() if _process_nodes else null)
+		var cloned_root: N = other_root._clone(self, _process_nodes.back() if _process_nodes else null)
 		register(cloned_root)
 		
-		var stack: Array[N] = []
-		stack.push_back(other_root)
-		stack.push_back(cloned_root)
+		var stack: Array[Array] = [] # Array[Array[N]]
+		stack.push_back([ other_root, cloned_root ])
 		while stack:
-			var clone: N = stack.pop_back()
-			var original: N = stack.pop_back()
+			var original: N = stack.back()[0]
+			var clone: N = stack.pop_back()[1]
 			if original is NComp and clone is NComp:
 				for c: N in original.children:
-					clone.add_child(c.clone(self, clone))
-					stack.push_back(c)
-					stack.push_back(clone.children.back())
+					clone.add_child(c._clone(self, clone))
+					stack.push_back([ c, clone.children.back() ])
 			elif original is NDeco and clone is NDeco:
-				clone.child = original.child.clone(self, clone)
-				stack.push_back(original.child)
-				stack.push_back(clone.child)
+				clone.child = original.child._clone(self, clone)
+				stack.push_back([ original.child, clone.child ])
 		
 		if cloned_root is NComp:
 			_process_nodes.pop_back()
@@ -788,31 +863,35 @@ func clear_nodes() -> BT:
 ### compositors
 
 ## Iterate over the children until the child that fails.
-## Don't forget to close a compositor node with end()
+## Don't forget to close a compositor node with `end()`
 func sequence() -> BT:
 	return register(NCompSequence.new(self))
 
 ## Iterate over the children until the child that succeeds.
-## Don't forget to close a compositor node with end()
+## Don't forget to close a compositor node with `end()`
 func selector() -> BT:
 	return register(NCompSelector.new(self))
 
 ## Execute all the children at once until one of them fails or all of them succeed.
-## Don't forget to close a compositor node with end()
+## Don't forget to close a compositor node with `end()`
 func parallel() -> BT:
 	return register(NCompParallel.new(self))
 
 ## Execute all the children at once until one of them succeeds or all of them fail.
-## Don't forget to close a compositor node with end()
+## Don't forget to close a compositor node with `end()`
 func race() -> BT:
 	return register(NCompRace.new(self))
 
 ## Randomly select a child and execute it.
-## Don't forget to close a compositor node with end()
+## Don't forget to close a compositor node with `end()`
 func random_selector() -> BT:
 	return register(NCompRandomSelector.new(self))
 
 ### decorators
+
+## Shortform of `override(Status.Nothing)`, the result will be ignored
+func ignore() -> BT:
+	return register(NDecoIgnore.new(self))
 
 ## Invert the child's `Status`, if it's not `Running`
 func invert() -> BT:
@@ -831,6 +910,10 @@ func retry() -> BT:
 	return register(NDecoRetry.new(self))
 
 ### actions
+
+## This node does nothing, similar to `pass` in GDScript
+func nothing() -> BT:
+	return register(NNothing.new(self))
 
 ## Just fail
 func fail() -> BT:
