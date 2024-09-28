@@ -38,7 +38,8 @@ class_name BT
 ## these to be updated after the tree's initialisation, give them a $ prefix (this is probably very
 ## costly performance-wise, so only use this for testing purposes).
 ## Text-based behaviour trees also support the node `tree`. If it's at the root, it creates a tree.
-## If you use inside a tree, it will insert the tree. This might help with organizing.
+## If you use `tree <name>` inside a tree, it will insert this tree. You can only insert trees defined
+## beforehand, preventing circular insertion.
 ##
 ## Composite nodes (more than 0 children): `sequence`, `selector`, `parallel`, `race`, `random_selector`
 ## Decorator nodes (1 child): `ignore`, `invert`, `override`, `repeat`, `retry`
@@ -47,9 +48,10 @@ class_name BT
 ## `do` is the tree node that allows using your own custom behaviours. Your behaviour function should
 ## return `BT.Status.Success`, `BT.Status.Fail` or `BT.Status.Running`, or a `bool`. If the function
 ## is `void` or returns `null`, the status is set to Success; in all other cases the internal status
-## is not changed.
-## Of course you can also create your own custom nodes by inheriting from the `BT.N` class.
-## The `do` node uses the `NAction` class.
+## is not changed. There's also `BT.Status.Nothing`, which means the result does not change the execution
+## of the parent decorator or composite node.
+## Of course you can also create your own custom nodes by inheriting from the `BT.N` class. The `do`
+## and `check` node both use the `NAction` class.
 ##
 ## Originally a port of https://github.com/ratkingsminion/simple-behaviour-tree
 ## Inspired by fluid BT: https://github.com/ashblue/fluid-behavior-tree
@@ -509,6 +511,7 @@ func parse_text(text: String) -> BT:
 						continue
 					if tbt._roots:
 						tbt = BT.create(target)
+					tabs.push_back(false)
 					tbts[l_args[0]] = tbt
 				else:
 					if not tbts.has(l_args[0]):
@@ -654,6 +657,7 @@ func parse_text(text: String) -> BT:
 					else:
 						dyn_call = callable.bindv(arguments)
 					tbt.do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
+	
 	while tabs:
 		if tabs.pop_back(): tbt.end()
 	
@@ -812,7 +816,7 @@ func register(n: N) -> BT:
 	return self
 
 ## Inserts a tree from another `BT` into this one, copying all the nodes. Useful
-## if you want to create slightly different behaviours for different agents
+## if you want to create slightly different behaviours for different agents.
 func insert_tree(other: BT) -> BT:
 	if not other or not other._roots:
 		return self
@@ -834,7 +838,7 @@ func insert_tree(other: BT) -> BT:
 				clone.child = original.child._clone(self, clone)
 				stack.push_back([ original.child, clone.child ])
 		
-		if cloned_root is NComp:
+		if cloned_root is NComp or cloned_root is NDeco:
 			_process_nodes.pop_back()
 
 	return self
@@ -846,10 +850,10 @@ func end() -> BT:
 		return self
 	var last: N = _process_nodes.back()
 	if last is not NComp:
-		printerr("Malformed Behaviour Tree: end() used without composite node!")
+		printerr("Malformed Behaviour Tree: end() used without composite node! (", last._name(), ")")
 		return self
 	if not last.child_count:
-		printerr("Malformed Behaviour Tree: composite node with no children!")
+		printerr("Malformed Behaviour Tree: composite node with no children! (", last._name(), ")")
 		return self
 	_process_nodes.pop_back()
 	return self
