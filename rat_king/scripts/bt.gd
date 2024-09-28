@@ -609,7 +609,7 @@ func parse_text(text: String) -> BT:
 					tbt.say(target.get_indexed(l_args[0]))
 			"wait":
 				if l_args_count > 1:
-					print("Warning: too many arguments for ", node, "t node, ignoring the rest")
+					print("Warning: too many arguments for ", node, " node, ignoring the rest")
 				if l_args_count == 0:
 					tbt.wait(1.0)
 				elif _is_num(l_args[0]):
@@ -667,10 +667,14 @@ func parse_text(text: String) -> BT:
 
 func _parse_args(line: String) -> Array[String]:
 	var res: Array[String] = []
+	if not line: return res
 	var cur := ""
 	var cur_string_token := ""
-	for s in line:
-		if not cur_string_token and s in _whitespaces:
+	for i in line.length():
+		var s := line[i]
+		if not cur_string_token and (s == "#" or (s == "/" and i < line.length() - 1 and line[i + 1] == "/")):
+			break
+		elif not cur_string_token and s in _whitespaces:
 			if cur:
 				res.append(cur)
 				cur = ""
