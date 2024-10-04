@@ -561,8 +561,6 @@ func parse_text(text: String) -> BT:
 							for a in l_args["args"]: dyn_args.append(a.call() if a and a is Callable else a)
 							return callable.bindv(dyn_args).call() # throws error, callable.callv(dyn_args) does not - better be explicit
 					else:
-						
-						for a in l_args["args"]: print(l_stripped, " ... ", a, " ", typeof(a))
 						dyn_call = callable.bindv(l_args["args"])
 					tbt.do(dyn_call, str(node, " [", " ".join(l_args["arg_names"]), "]"))
 	
