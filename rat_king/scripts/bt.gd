@@ -3,43 +3,45 @@ class_name BT
 ## This is a simple behaviour tree implementation. Usage:
 ## ```
 ## # Either create the tree directly:
-##	_bt = BT.create() \
-##		.parallel() \
-##			.repeat() \
-##				.sequence() \
-##					.do(set_next_pos) \
-##					.do(walk_to_next_pos.bind(walk_speed)) \
-##					.wait(func() -> float: return randf_range(0.0, 1.0)) \
-##				.end() \
-##			.repeat() \
-##				.sequence() \
-##					.do(change_color) \
-##					.wait(0.75) \
-##				.end()
+## _bt = BT.create() \
+## 	.parallel() \
+## 		.repeat() \
+## 			.sequence() \
+## 				.do(set_next_pos) \
+## 				.do(walk_to_next_pos.bind(walk_speed)) \
+## 				.wait(func() -> float: return randf_range(0.0, 1.0)) \
+## 			.end() \
+## 		.repeat() \
+## 			.sequence() \
+## 				.do(change_color) \
+## 				.wait(0.75) \
+## 			.end()
 ##
 ## # Or feed a text:
-## 	var text := "
-## parallel
+##  var text := "
+##  parallel
+##  	repeat
+##  		sequence
+##  			set_next_pos
+##  			walk_to_next_pos {0.5 * walk_speed}
+## 			wait $wait_time
 ## 	repeat
 ## 		sequence
-## 			set_next_pos
-## 			walk_to_next_pos walk_speed
-##			wait $wait_time
-##	repeat
-##		sequence
-##			change_color
-##			wait 0.75"
-##	_bt = BT.create(self, text)
+## 			change_color
+## 			wait 0.75"
+## _bt = BT.create(self, text)
 ## ```
 ## To actually run the behaviour tree, call `_bt.tick()` whenever you want it to update - for realtime
 ## games this is usually every frame, but for turn-based games this could be on each turn.
 ##
 ## Behaviour trees created via text also support variables from the target as arguments. If you want
-## these to be updated after the tree's initialisation, give them a $ prefix (this is probably very
-## costly performance-wise, so only use this for testing purposes).
+## these to be updated even after the tree's initialisation, give them a $ prefix (this is probably
+## expensive performance-wise, so only use this for testing purposes).
+## You can also use expressions by using curly braces, for example like this: `{0.5 * _speed}`. The
+## expression will be evaluated at initialisation if you don't prefix it with $.
 ## Text-based behaviour trees also support the node `tree`. If it's at the root, it creates a tree.
-## If you use `tree <name>` inside a tree, it will insert this tree. You can only insert trees defined
-## beforehand, preventing circular insertion.
+## If you use `tree '<name>'` inside a tree, it will insert this tree. You can only insert trees defined
+## beforehand, preventing circular insertion. For non-text-based trees, use the insert_tree() method.
 ##
 ## Composite nodes (more than 0 children): `sequence`, `selector`, `parallel`, `race`, `random_selector`
 ## Decorator nodes (1 child): `ignore`, `invert`, `override`, `repeat`, `retry`
@@ -48,10 +50,10 @@ class_name BT
 ## `do` is the tree node that allows using your own custom behaviours. Your behaviour function should
 ## return `BT.Status.Success`, `BT.Status.Fail` or `BT.Status.Running`, or a `bool`. If the function
 ## is `void` or returns `null`, the status is set to Success; in all other cases the internal status
-## is not changed. There's also `BT.Status.Nothing`, which means the result does not change the execution
-## of the parent decorator or composite node.
-## Of course you can also create your own custom nodes by inheriting from the `BT.N` class. The `do`
-## and `check` node both use the `NAction` class.
+## is not changed. There's `BT.Status.Nothing`, which means the result does not change the execution of
+## the parent decorator or composite node.
+## You can also create your own custom nodes by inheriting from the `BT.N` class. The `do` and `check`
+## nodes both use the `NAction` class.
 ##
 ## Originally a port of https://github.com/ratkingsminion/simple-behaviour-tree
 ## Inspired by fluid BT: https://github.com/ashblue/fluid-behavior-tree
@@ -67,6 +69,9 @@ const _symbol_lambda = "$"
 const _whitespaces = [ " ", "\t", "\n" ]
 const _string_tokens = [ "\"", "'" ]
 const _digits = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
+const _expr_tokens = [ '{', '}' ]
+const _TYPE_IDENTIFIER = TYPE_MAX + 1
+const _TYPE_EXPRESSION = TYPE_MAX + 2
 
 class N:
 	var bt: BT
@@ -280,6 +285,7 @@ class NDecoOverride extends NDeco:
 		super(bt)
 		if status == null: self.status = Status.Success
 		elif status is Status or status is Callable: self.status = status
+		elif status is String and status.to_lower() == "fail": self.status = Status.Fail
 		else: self.status = Status.Success if status else Status.Fail
 	
 	func _name() -> String:
@@ -369,6 +375,7 @@ class NWait extends N:
 	
 	func _init(bt: BT, wait_time) -> void:
 		super(bt)
+		if bt._is_num(wait_time): wait_time = float(wait_time)
 		self.wait_time = wait_time
 	
 	func _name() -> String:
@@ -440,6 +447,7 @@ class NAction extends N:
 		if action_start: action_start.call()
 	
 	func _on_tick() -> void:
+		if not action_run: cur_status = Status.Fail; return
 		var res = action_run.call()
 		if res == null: cur_status = Status.Success
 		elif res is Status: cur_status = res
@@ -460,6 +468,7 @@ var _process_nodes: Array[N] = []
 var _roots: Array[N] = []
 var _tick_process_node_idx := 0
 var _tick_counter := 0
+var _expr := Expression.new()
 
 ###
 
@@ -495,8 +504,8 @@ func parse_text(text: String) -> BT:
 		if not tabs and tbt._roots:
 			tbt = BT.create(target)
 		var l_args := _parse_args(l_stripped)
-		var node := l_args.pop_front() as String
-		var l_args_count := l_args.size()
+		var node := l_args["node"] as String
+		var l_args_count := (l_args["args"] as Array).size()
 		match node:
 			"tree":
 				if l_args_count == 0:
@@ -506,157 +515,56 @@ func parse_text(text: String) -> BT:
 				if l_args_count > 1:
 					print("Warning: too many arguments for ", node, " node, ignoring the rest")
 				if not tabs:
-					if tbts.has(l_args[0]):
-						print("Warning: ", node, " ", l_args[0], " already defined, ignored")
-						continue
-					if tbt._roots:
-						tbt = BT.create(target)
+					if tbts.has(l_args["args"][0]):
+						print("Warning: ", node, " ", l_args["args"][0], " already defined, overwriting")
+					if tbt._roots: tbt = BT.create(target)
 					tabs.push_back(false)
-					tbts[l_args[0]] = tbt
-				else:
-					if not tbts.has(l_args[0]):
-						print("Warning: ", node, " ", l_args[0], " does not exist, can't be inserted")
-						tbt.nothing()
-						continue
-					tbt.insert_tree(tbts[l_args[0]])
-			"sequence":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(true)
-				tbt.sequence();
-			"selector":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(true)
-				tbt.selector()
-			"parallel":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(true)
-				tbt.parallel()
-			"race":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(true)
-				tbt.race()
-			"random_selector":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(true)
-				tbt.random_selector()
-			"ignore":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(false)
-				tbt.ignore()
-			"invert":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(false)
-				tbt.invert()
-			"override":
-				tabs.push_back(false)
-				if l_args_count > 1:
-					print("Warning: too many arguments for ", node, " node, ignoring the rest")
-				if l_args_count == 0:
-					tbt.override(true)
-				elif l_args[0].to_lower() in [ "true", "success" ]:
-					tbt.override(Status.Success)
-				elif l_args[0].to_lower() in [ "false", "fail" ]:
-					tbt.override(Status.Fail)
-				elif l_args[0].begins_with(_symbol_lambda):
-					var dyn_arg := l_args[1].substr(1)
-					var dyn_call := func():
-						var res = target.get_indexed(dyn_arg)
-						if res is Status: return res
-						elif res is String and res.to_lower() in [ "true", "success" ]: return Status.Success
-						elif res is String and res.to_lower() in [ "false", "fail" ]: return Status.Fail
-						else: return Status.Success if res else Status.Fail
-					tbt.override(dyn_call)
-				else:
-					tbt.override(target.get_indexed(l_args[1]))
-			"repeat":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(false)
-				tbt.repeat()
-			"retry":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tabs.push_back(false)
-				tbt.retry()
-			"fail":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tbt.fail()
-			"success":
-				if l_args_count > 0:
-					print("Warning: ignoring arguments for ", node, " node")
-				tbt.success()
-			"say":
-				if l_args_count == 0:
-					print("Warning: ", node, " node needs an argument, ignored")
+					tbts[l_args["args"][0]] = tbt
+				elif not tbts.has(l_args["args"][0]):
+					print("Warning: ", node, " ", l_args["args"][0], " does not exist, can't be inserted")
 					tbt.nothing()
-					continue
+				else:
+					tbt.insert_tree(tbts[l_args["args"][0]])
+			"sequence", "selector", "parallel", "race", "random_selector":
+				if l_args_count: print("Warning: ignoring arguments for ", node, " node")
+				tabs.push_back(true)
+				tbt.call(node)
+			"ignore", "invert", "repeat", "retry", "fail", "success":
+				if l_args_count: print("Warning: ignoring arguments for ", node, " node")
+				tabs.push_back(false)
+				tbt.call(node)
+			"override":
 				if l_args_count > 1:
 					print("Warning: too many arguments for ", node, " node, ignoring the rest")
-				elif l_args[0].begins_with(_symbol_lambda):
-					var dyn_arg := l_args[0].substr(1)
-					tbt.say(func(): return target.get_indexed(dyn_arg))
-				elif _is_str(l_args[0]):
-					tbt.say(_get_str(l_args[0]))
-				else:
-					tbt.say(target.get_indexed(l_args[0]))
+				tabs.push_back(false)
+				tbt.override(l_args["args"][0] if l_args_count else Status.Success)
+			"say":
+				if l_args_count > 1:
+					print("Warning: too many arguments for ", node, " node, ignoring the rest")
+				tbt.say(l_args["args"][0] if l_args_count else "Hello, world!")
 			"wait":
 				if l_args_count > 1:
 					print("Warning: too many arguments for ", node, " node, ignoring the rest")
-				if l_args_count == 0:
-					tbt.wait(1.0)
-				elif _is_num(l_args[0]):
-					tbt.wait(float(l_args[0]))
-				elif l_args[0].begins_with(_symbol_lambda):
-					var dyn_arg := l_args[0].substr(1)
-					tbt.wait(func(): return float(target.get_indexed(dyn_arg)))
-				else:
-					tbt.wait(float(target.get_indexed(l_args[0])))
+				tbt.wait(l_args["args"][0] if l_args_count else 1.0)
 			_: # custom node
 				if not target.has_method(node):
 					print("Warning: method '", node, "' not found in ", target, "!")
 				elif l_args_count == 0:
 					tbt.do(Callable.create(target, node), node)
 				else: # has arguments
-					var arguments := []
-					var has_dyn_args := -1
-					var arg_names: Array[String] = []
-					for a in l_args:
-						arg_names.append(a)
-						if str(int(a)) == a: arguments.append(int(a))
-						elif _is_num(a): arguments.append(float(a))
-						elif a == "true": arguments.append(true)
-						elif a == "false": arguments.append(false)
-						elif a.begins_with(_symbol_lambda):
-							a = a.substr(1)
-							arguments.append(func(): return target.get_indexed(a)) # evaluated later!
-							if has_dyn_args < 0: has_dyn_args = arguments.size()
-						else: arguments.append(target.get_indexed(a))
 					var callable := Callable.create(target, node)
-					var arg_count := callable.get_argument_count()
-					if arguments.size() > arg_count:
-						print("Warning: too many arguments for method '", node, "', ignoring the rest")
-						arguments = arguments.slice(0, arg_count)
-						arg_names = arg_names.slice(0, arg_count)
-					elif arguments.size() < arg_count:
-						print("Warning: not enough arguments, will throw error!")
 					var dyn_call
-					if has_dyn_args >= 0 and has_dyn_args <= arguments.size():
+					if l_args["dyn_args"] > 0: # TODO!!!
 						var dyn_args := []
 						dyn_call = func():
 							dyn_args.clear()
-							for a in arguments: dyn_args.append(a.call() if a is Callable else a)
+							for a in l_args["args"]: dyn_args.append(a.call() if a and a is Callable else a)
 							return callable.bindv(dyn_args).call() # throws error, callable.callv(dyn_args) does not - better be explicit
 					else:
-						dyn_call = callable.bindv(arguments)
-					tbt.do(dyn_call, str(node, " [", " ".join(arg_names), "]"))
+						
+						for a in l_args["args"]: print(l_stripped, " ... ", a, " ", typeof(a))
+						dyn_call = callable.bindv(l_args["args"])
+					tbt.do(dyn_call, str(node, " [", " ".join(l_args["arg_names"]), "]"))
 	
 	while tabs:
 		if tabs.pop_back(): tbt.end()
@@ -665,43 +573,81 @@ func parse_text(text: String) -> BT:
 	
 	return self
 
-func _parse_args(line: String) -> Array[String]:
-	var res: Array[String] = []
+func _parse_args(line: String) -> Dictionary:
+	var args: Array = []
+	var arg_names: Array[String] = []
+	var arg_types: Array[int] = []
+	var res: Dictionary = { "dyn_args": 0, "args": args, "arg_types": arg_types, "arg_names": arg_names, "node": "" }
 	if not line: return res
 	var cur := ""
-	var cur_string_token := ""
+	var cur_token := ""
+	var cur_lambda := false
 	for i in line.length():
+		var is_last := i == line.length() - 1
 		var s := line[i]
-		if not cur_string_token and (s == "#" or (s == "/" and i < line.length() - 1 and line[i + 1] == "/")):
+		if not cur_token and (s == "#" or (s == "/" and i < line.length() - 1 and line[i + 1] == "/")):
 			break
-		elif not cur_string_token and s in _whitespaces:
+		elif not cur_token and (s in _whitespaces or is_last):
+			if is_last: cur += s
 			if cur:
-				res.append(cur)
+				if str(int(cur)) == cur: args.append(int(cur)); arg_types.append(TYPE_INT)
+				elif _is_num(cur): args.append(float(cur)); arg_types.append(TYPE_FLOAT)
+				elif cur == "true": args.append(true); arg_types.append(TYPE_BOOL)
+				elif cur == "false": args.append(false); arg_types.append(TYPE_BOOL)
+				elif cur_lambda:
+					args.append(func(): return target.get_indexed(cur)) # evaluated later!
+					arg_types.append(TYPE_CALLABLE)
+					res["dyn_args"] = res["dyn_args"] + 1
+					cur = _symbol_lambda + cur # for arg_names
+				elif not res["node"]: res["node"] = cur
+				else: args.append(target.get_indexed(cur)); arg_types.append(_TYPE_IDENTIFIER)
+				if res["node"] != cur: arg_names.append(cur)
 				cur = ""
-		elif cur_string_token and s == cur_string_token:
-			cur += s
-			res.append(cur)
+				cur_lambda = false
+		elif cur_token in _string_tokens and s == cur_token: # end string
+			args.append(cur)
+			arg_types.append(TYPE_STRING)
+			arg_names.append(str(_string_tokens[0], cur, _string_tokens[0]))
 			cur = ""
-		elif not cur_string_token and s in _string_tokens:
-			cur_string_token = s
-			cur += s
+			cur_token = ""
+			cur_lambda = false
+		elif cur_token == _expr_tokens[0] and s == _expr_tokens[1]: # end expression
+			if cur_lambda:
+				args.append(func(): return _evaluate_expr(cur))
+				arg_types.append(TYPE_CALLABLE) # but also _TYPE_EXPRESSION
+				arg_names.append(str(_symbol_lambda, _expr_tokens[0], cur, _expr_tokens[1]))
+				res["dyn_args"] = res["dyn_args"] + 1
+			else:
+				args.append(_evaluate_expr(cur))
+				arg_types.append(_TYPE_EXPRESSION)
+				arg_names.append(str(_expr_tokens[0], cur, _expr_tokens[1]))
+			cur = ""
+			cur_token = ""
+			cur_lambda = false
+		elif not cur_token and (s in _string_tokens or s == _expr_tokens[0]): # start string / expression
+			cur_token = s
+		elif not cur and not cur_lambda and s == _symbol_lambda:
+			cur_lambda = true
 		else:
 			cur += s
-	if cur: res.append(cur)
 	return res
 
-func _is_str(arg: String) -> bool:
-	return arg and arg[0] in _string_tokens
+func _evaluate_expr(arg: String):
+	if _expr.parse(arg) != OK:
+		printerr("Expression parsing failed: ", _expr.get_error_text())
+		breakpoint
+		return null
+	var res = _expr.execute([], target, true)
+	if _expr.has_execute_failed():
+		printerr("Expression execution failed: " + _expr.get_error_text())
+		breakpoint
+		return null
+	return res
 
-func _get_str(arg: String) -> String:
-	if not arg: return ""
-	var length := arg.length()
-	var token := arg[0]
-	if not token in _string_tokens: return ""
-	return arg.substr(1, length - (2 if length > 1 and arg[length - 1] == token else 1))
-
-func _is_num(arg: String) -> bool:
-	return arg and arg[0] in _digits
+func _is_num(arg) -> bool:
+	if arg is float or arg is int: return true
+	if arg is String and arg[0] in _digits: return true
+	return false
 
 ## Generate a debug string for the current state of the tree - use it in a `Label`
 ## or a `RichTextLabel` anytime you wish.
@@ -905,8 +851,8 @@ func ignore() -> BT:
 func invert() -> BT:
 	return register(NDecoInvert.new(self))
 
-## Override the child's `Status`, if it's not `Running`; can be a function/`Callable`
-func override(status) -> BT:
+## Override the child's `Status`, if it's not `Running`; can be a function/`Callable` too
+func override(status = Status.Success) -> BT:
 	return register(NDecoOverride.new(self, status))
 
 ## Repeat the child until it returns `Status.Fail`
@@ -937,10 +883,7 @@ func say(message) -> BT:
 
 ## Wait either a fixed (`wait_time` is `float`) or a dynamic amount of seconds (`wait_time`
 ## is a function/`Callable` returning `float`)
-func wait(wait_time) -> BT:
-	if wait_time is String and str(float(wait_time)) == wait_time: wait_time = float(wait_time)
-	if wait_time is not float and wait_time is not int and wait_time is not Callable:
-		print("Warning: wait() should be called with either a number or a Callable")
+func wait(wait_time = 1.0) -> BT:
 	return register(NWait.new(self, wait_time))
 
 ## Do an action
