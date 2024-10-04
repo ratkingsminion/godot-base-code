@@ -7,16 +7,7 @@ static func rnd_np() -> int:
 
 ### numbers
 
-static func repeat(t, length):
-	return t - floor(t / length) * length
-
-static func repeati(t: int, length: int) -> int:
-	return t - floori(t / float(length)) * length
-
-static func repeatf(t: float, length: float) -> float:
-	return t - floorf(t / length) * length
-
-static func repeati_array(t: int, array: Array) -> int:
+static func wrapi_array(t: int, array: Array) -> int:
 	if not array: return 0
 	return t - floor(t / float(array.size())) * array.size()
 
