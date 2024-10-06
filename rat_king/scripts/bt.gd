@@ -43,9 +43,12 @@ class_name BT
 ## If you use `tree '<name>'` inside a tree, it will insert this tree. You can only insert trees defined
 ## beforehand, preventing circular insertion. For non-text-based trees, use the insert_tree() method.
 ##
-## Composite nodes (more than 0 children): `sequence`, `selector`, `parallel`, `race`, `random_selector`
-## Decorator nodes (1 child): `ignore`, `invert`, `override`, `repeat`, `retry`
-## Other nodes (0 children): `nothing`, `fail`, `success`, `log`, `wait`, `do`/`prep_do`/`check`
+## Composite nodes (more than 0 children):
+##		`sequence`, `selector`, `parallel`, `race`, `randomizer", `if_else`
+## Decorator nodes (1 child):
+##		`ignore`, `invert`, `override`, `repeat`, `retry`
+## Other nodes (0 children):
+##		`nothing`, `fail`, `success`, `log`, `wait`, `do`/`prep_do`/`check`
 ##
 ## `do` is the tree node that allows using your own custom behaviours. Your behaviour function should
 ## return `BT.Status.Success`, `BT.Status.Fail` or `BT.Status.Running`, or a `bool`. If the function
@@ -142,12 +145,12 @@ class NCompSequence extends NComp:
 	func _on_start() -> void:
 		cur_status = Status.Running
 		cur_idx = 0
-		bt._tick_node(children[cur_idx])
+		bt._tick_node(children[0])
 	
 	func _on_child_report(child: N) -> void:
 		if child.cur_status != Status.Running:
 			if child.cur_status == Status.Fail:
-				cur_status = child.cur_status
+				cur_status = Status.Fail
 			else:
 				cur_idx += 1
 				if cur_idx >= child_count:
@@ -168,12 +171,12 @@ class NCompSelector extends NComp:
 	func _on_start() -> void:
 		cur_status = Status.Running
 		cur_idx = 0
-		bt._tick_node(children[cur_idx])
+		bt._tick_node(children[0])
 	
 	func _on_child_report(child: N) -> void:
 		if child.cur_status != Status.Running:
 			if child.cur_status == Status.Success:
-				cur_status = child.cur_status
+				cur_status = Status.Success
 			else:
 				cur_idx += 1
 				if cur_idx >= child_count:
@@ -230,18 +233,84 @@ class NCompRace extends NComp:
 				if cur_fail == child_count:
 					cur_status = Status.Fail
 
-class NCompRandomSelector extends NComp:
+class NCompRandomizer extends NComp:
+	var count
+	var is_sequence # if true, call the children like a sequence, other like a selector
+	var cur_order: Array
+	var cur_idx: int
+	var cur_count: int
+	var cur_is_sequence: bool
+	
+	func _init(bt: BT, count = -1, is_sequence = true) -> void:
+		super(bt)
+		if not count: self.count = -1
+		elif count is float or count is int: self.count = int(count)
+		elif count is Callable: self.count = count
+		else: self.count = -1
+		if not is_sequence: self.is_sequence = false
+		elif is_sequence is bool or is_sequence is Callable: self.is_sequence = is_sequence
+		else: self.sequence = true
+	
 	func _name() -> String:
-		return "random_selector"
+		var cnt := "all" if cur_count <= 0 else str(cur_count)
+		var seq := "seq" if cur_is_sequence else "sel"
+		return "randomizer [" + (str(_symbol_lambda, ":", cnt) if count is Callable else cnt) + " " + (str(_symbol_lambda, ":", seq) if is_sequence is Callable else seq) + "]"
+
 	
 	func _on_clone(other_tree: BT) -> N:
-		return NCompRandomSelector.new(other_tree)
+		return NCompRandomizer.new(other_tree, count, is_sequence)
 	
 	func _on_start() -> void:
-		bt._tick_node(children.pick_random())
+		cur_status = Status.Running
+		cur_order = range(0, children.size())
+		cur_order.shuffle()
+		cur_idx = 0
+		cur_is_sequence = is_sequence.call() if is_sequence is Callable else is_sequence
+		cur_count = count.call() if count is Callable else count
+		bt._tick_node(children[cur_order[0]])
 	
 	func _on_child_report(child: N) -> void:
-		cur_status = child.cur_status
+		if child.cur_status != Status.Running:
+			if child.cur_status == (Status.Fail if cur_is_sequence else Status.Success):
+				cur_status = child.cur_status
+			else:
+				cur_idx += 1
+				if cur_idx >= child_count or (cur_count > 0 and cur_idx > cur_count):
+					cur_status = child.cur_status
+				else:
+					bt._tick_node(children[cur_order[cur_idx]])
+					bt.is_ticking = true
+
+class NCompIfElse extends NComp:
+	var cur_idx: int
+	
+	func _name() -> String:
+		return "if_else"
+	
+	func _on_clone(other_tree: BT) -> N:
+		return NCompIfElse.new(other_tree)
+	
+	func _on_start() -> void:
+		cur_status = Status.Running
+		cur_idx = 0
+		bt._tick_node(children[0])
+	
+	func _on_child_report(child: N) -> void:
+		if child.cur_status != Status.Running:
+			if cur_idx % 2 == 0 and child.cur_status == Status.Success and cur_idx < child_count - 1:
+				cur_status = Status.Running
+				cur_idx += 1
+				bt._tick_node(children[cur_idx])
+				bt.is_ticking = true
+			elif cur_idx % 2 == 1:
+				cur_status = child.cur_status
+			else:
+				cur_idx += 2
+				if cur_idx >= child_count:
+					cur_status = child.cur_status
+				else:
+					bt._tick_node(children[cur_idx])
+					bt.is_ticking = true
 
 class NDeco extends N:
 	var child: N
@@ -263,7 +332,10 @@ class NDecoIgnore extends NDeco:
 		return NDecoIgnore.new(other_tree)
 	
 	func _on_child_report(child: N) -> void:
-		cur_status = Status.Nothing
+		if child.cur_status == Status.Running:
+			cur_status = Status.Running
+		else:
+			cur_status = Status.Nothing
 
 class NDecoInvert extends NDeco:
 	func _name() -> String:
@@ -525,7 +597,7 @@ func parse_text(text: String) -> BT:
 					tbt.nothing()
 				else:
 					tbt.insert_tree(tbts[l_args["args"][0]])
-			"sequence", "selector", "parallel", "race", "random_selector":
+			"sequence", "selector", "parallel", "race", "randomizer", "if_else":
 				if l_args_count: print("Warning: ignoring arguments for ", node, " node")
 				tabs.push_back(true)
 				tbt.call(node)
@@ -834,14 +906,21 @@ func parallel() -> BT:
 func race() -> BT:
 	return register(NCompRace.new(self))
 
-## Randomly select a child and execute it.
+## Randomly picks `count` children and execute them either like a sequence or like a selector.
+## Both `count` and `is_sequence` can be a function/`Callable` too.
 ## Don't forget to close a compositor node with `end()`
-func random_selector() -> BT:
-	return register(NCompRandomSelector.new(self))
+func randomizer(count = 1, is_sequence = true) -> BT:
+	return register(NCompRandomizer.new(self, count, is_sequence))
+
+## Checks the first, third, fifth, ... child until it's successful - then the sibling after this
+## child (if it exists) will be executed and its status returned.
+## Don't forget to close a compositor node with `end()`
+func if_else() -> BT:
+	return register(NCompIfElse.new(self))
 
 ### decorators
 
-## Shortform of `override(Status.Nothing)`, the result will be ignored
+## The result of the child will be ignored, if it's not `Running`
 func ignore() -> BT:
 	return register(NDecoIgnore.new(self))
 
@@ -849,7 +928,7 @@ func ignore() -> BT:
 func invert() -> BT:
 	return register(NDecoInvert.new(self))
 
-## Override the child's `Status`, if it's not `Running`; can be a function/`Callable` too
+## Override the child's `Status`, if it's not `Running`; `status`can be a function/`Callable` too
 func override(status = Status.Success) -> BT:
 	return register(NDecoOverride.new(self, status))
 
