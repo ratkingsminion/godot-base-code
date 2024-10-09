@@ -44,7 +44,7 @@ func _set(property: StringName, value: Variant) -> bool:
 
 func _validate_property(property: Dictionary) -> void:
 	match property.name:
-		"audio_players": property.usage = PROPERTY_USAGE_NO_EDITOR
+		"audio_players": property.usage = PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_ARRAY | PROPERTY_USAGE_ALWAYS_DUPLICATE
 
 func _get_property_list() -> Array[Dictionary]:
 	var properties: Array[Dictionary] = []
@@ -112,13 +112,20 @@ func _process(delta: float) -> void:
 	if is_music:
 		for id: StringName in audio_players_by_id:
 			var ap: Dictionary = audio_players_by_id[id]
-			#var vol := db_to_linear(ap["node"].volume_db)
 			var target: float = 1.0 if cur_music == id else 0.0
 			ap["vol_factor"] = move_toward(ap["vol_factor"], target, delta / cur_music_fade_time)
+			if target == 0.0 and ap["vol_factor"] > 0.0: ap["node"].stream_paused = false
+			elif target == 1.0 and ap["vol_factor"] == 0.0: ap["node"].stream_paused = true
 			ap["node"].volume_db = linear_to_db(ap["std_vol_lin"] * ap["vol_factor"])
 			#print(id, " ", ap["vol_music"], " ", ap["node"].volume_db, " ", ap["std_vol_lin"])
 
 ###
+
+func set_playing(id: StringName, play: bool) -> void:
+	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
+	var ap: Dictionary = audio_players_by_id[id]
+	if play: ap["node"].play()
+	else: ap["node"].stop()
 
 func stop(id: StringName) -> void:
 	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
