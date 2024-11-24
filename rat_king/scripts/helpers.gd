@@ -1,13 +1,15 @@
 class_name Helpers
 
 static var _classes: Dictionary
-static var _tree: SceneTree
+static var _scripts: Dictionary
+static var _tree: SceneTree = Engine.get_main_loop()
 
 ###
 
 static func _static_init() -> void:
 	for c: Dictionary in ProjectSettings.get_global_class_list():
 		_classes[c.class] = c.path
+		_scripts[c.class] = load(c.path)
 
 static func set_tree(tree: SceneTree) -> void:
 	_tree = tree
@@ -26,7 +28,7 @@ static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
 	var timestamp := Time.get_datetime_string_from_system(false, true).replace(" ", "_").replace(":", "").replace("-", "")
 	path = path + "_" + timestamp + (".jpg" if as_jpg else ".png")
 	var res := image.save_jpg(path) if as_jpg else image.save_png(path)
-	if res == OK: print("screenshot saved: ", path)
+	if res == OK: GameUi.log(str("screenshot saved: ", path))
 
 ### find nodes and classes
 
@@ -92,11 +94,11 @@ static func find_class_in_all_parents(node: Node, name_of_class: StringName, inc
 static func find_type_in_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Node:
 	if node == null: return null
 	if include_self and node.is_class(name_of_type): return node
-	if include_self and node.get_script() != null and _classes[name_of_type] == node.get_script().get_path():
+	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
 		return node
 	for child: Node in node.get_children(include_internal):
 		if child.is_class(name_of_type): return child
-		if child.get_script() != null and _classes[name_of_type] == child.get_script().get_path():
+		if child.get_script() != null and _scripts[name_of_type] == child.get_script():
 			return child
 	return null
 
@@ -105,11 +107,11 @@ static func find_all_type_in_children(node: Node, name_of_type: StringName, incl
 	if node == null: return []
 	var result: Array[Node] = []
 	if include_self and node.is_class(name_of_type): result.push_back(node)
-	if include_self and node.get_script() != null and _classes[name_of_type] == node.get_script().get_path():
+	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
 		result.push_back(node)
 	for child: Node in node.get_children(include_internal):
 		if child.is_class(name_of_type): result.push_back(child)
-		if child.get_script() != null and _classes[name_of_type] == child.get_script().get_path():
+		if child.get_script() != null and _scripts[name_of_type] == child.get_script():
 			result.push_back(child)
 	return result
 
@@ -117,12 +119,12 @@ static func find_all_type_in_children(node: Node, name_of_type: StringName, incl
 static func find_type_in_all_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Node:
 	if node == null: return null
 	if include_self and node.is_class(name_of_type): return node
-	if include_self and node.get_script() != null and _classes[name_of_type] == node.get_script().get_path():
+	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
 		return node
 	for child: Node in Helpers.get_all_children(node, false, include_internal):
 		if child.is_class(name_of_type): return child
 		var script = child.get_script()
-		if script != null and _classes[name_of_type] == script.get_path(): return child
+		if script != null and _scripts[name_of_type] == script: return child
 	return null
 
 ## this does not recognize a custom type (class_name) inheriting from another custom type!
@@ -132,19 +134,19 @@ static func find_all_type_in_all_children(node: Node, name_of_type: StringName, 
 	for child: Node in Helpers.get_all_children(node, include_self, include_internal):
 		if child.is_class(name_of_type): result.push_back(child)
 		var script = child.get_script()
-		if script != null and _classes[name_of_type] == script.get_path(): result.push_back(child)
+		if script != null and _scripts[name_of_type] == script: result.push_back(child)
 	return result
 
 ## this does not recognize a custom type (class_name) inheriting from another custom type!
 static func find_type_in_all_parents(node: Node, name_of_type: StringName, include_self := true) -> Node:
 	if node == null: return null
 	if include_self and node.is_class(name_of_type): return node
-	if include_self and node.get_script() != null and _classes[name_of_type] == node.get_script().get_path():
+	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
 		return node
 	node = node.get_parent()
 	while node != null:
 		if node.is_class(name_of_type): return node
-		if node.get_script() != null and _classes[name_of_type] == node.get_script().get_path():
+		if node.get_script() != null and _scripts[name_of_type] == node.get_script():
 			return node
 		node = node.get_parent()
 	return null
@@ -182,7 +184,7 @@ static func do_next_frame(node: Node, on_complete: Callable) -> void:
 	on_complete.call()
 
 ## coroutine
-static func tree_timout(seconds: float) -> void:
+static func tree_timeout(seconds: float) -> void:
 	if seconds <= 0.0: return
 	if _tree == null: printerr("Trying to timeout without tree"); return
 	await _tree.create_timer(seconds).timeout

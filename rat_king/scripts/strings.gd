@@ -39,3 +39,9 @@ static func join(texts: Array, joiner: String, start_idx := 0) -> String:
 		if i != start_idx: res += joiner
 		res += str(texts[i])
 	return res
+
+static func random_id(count := 8, items := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcedfghijklmnopqrstuvwxyz") -> String:
+	var res := ""
+	for i in count:
+		res += items[randi_range(0, items.length() - 1)]
+	return res

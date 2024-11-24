@@ -81,6 +81,12 @@ static func vec3_frin_lerp(a: Vector3, b: Vector3, t: float, delta: float, hertz
 	t = (1.0 - t) ** (delta * hertz)
 	return Vector3(t * a.x + (1.0 - t) * b.x, t * a.y + (1.0 - t) * b.y, t * a.z + (1.0 - t) * b.z)
 
+## uses radians
+static func frin_lerp_angle(a: float, b: float, t: float, delta: float, hertz := 60.0) -> float:
+	var tt := wrapf((b - a), 0.0, PI * 2.0)
+	if tt > PI: tt -= PI * 2.0
+	return a + tt * (t ** (delta * hertz))
+
 ### smooth damping
 
 # from https://github.com/Unity-Technologies/UnityCsReference/blob/master/Runtime/Export/Math/Mathf.cs

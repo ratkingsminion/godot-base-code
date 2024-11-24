@@ -57,7 +57,7 @@ func _process(delta: float) -> void:
 				wobble.target.rotate(wobble.axis, wobble.strength * wobble.factor * sin(wobble.start_time + 10 * time) * 0.5)
 			# TODO target type Control
 
-static func wobble_x(node: Node3D, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE) -> void:
+static func wobble_x(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE) -> void:
 	wobble(node, strength, seconds, speed, Vector3.RIGHT, type)
 
 static func wobble_y(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE) -> void:
@@ -67,12 +67,12 @@ static func wobble_z(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, 
 	wobble(node, strength, seconds, speed, Vector3.MODEL_FRONT, type)
 
 static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, axis := Vector3.ONE, type := Type.SCALE) -> Wobble:
-	if node == null or strength == 0.0 or seconds <= 0.0: 
+	if not node or strength == 0.0 or seconds <= 0.0: 
 		return
 	
 	if _inst == null:
 		_inst = Wobbler.new()
-		node.get_tree().current_scene.add_child(_inst, true)
+		node.get_tree().current_scene.add_child.call_deferred(_inst, true)
 	
 	var list := _cur_wobbles.filter(func(w: Wobble) -> bool: return w.target == node and w.type == type)
 	
