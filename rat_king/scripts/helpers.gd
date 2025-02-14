@@ -14,6 +14,18 @@ static func _static_init() -> void:
 static func set_tree(tree: SceneTree) -> void:
 	_tree = tree
 
+### csv
+
+static func test_csv_file(file: String):
+	var f := FileAccess.open(file, FileAccess.READ)
+	var l := 1
+	while not f.eof_reached(): # iterate through all lines until the end of file is reached
+		var line = f.get_line()
+		if line.count("\"") % 2 != 0:
+			printerr("WRONG QUOTE COUNT IN ", file, ": [LINE ", l, "] ", line.count("\""))
+		l += 1
+	f.close()
+
 ### screenshots
 
 static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
@@ -28,7 +40,7 @@ static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
 	var timestamp := Time.get_datetime_string_from_system(false, true).replace(" ", "_").replace(":", "").replace("-", "")
 	path = path + "_" + timestamp + (".jpg" if as_jpg else ".png")
 	var res := image.save_jpg(path) if as_jpg else image.save_png(path)
-	if res == OK: GameUi.log(str("screenshot saved: ", path))
+	if res == OK: print(str("screenshot saved: ", path))
 
 ### find nodes and classes
 
@@ -180,6 +192,7 @@ static func tree_do_next_frame(on_complete: Callable) -> void:
 
 ## coroutine
 static func do_next_frame(node: Node, on_complete: Callable) -> void:
+	if not node: return
 	await node.get_tree().process_frame
 	on_complete.call()
 
@@ -198,9 +211,22 @@ static func timeout(node: Node, seconds: float) -> void:
 	node.add_child(timer)
 	timer.start(seconds)
 	await timer.timeout
+	if node: node.remove_child(timer)
 
 static func cur_time(multiplier := 1.0) -> float:
 	return Time.get_ticks_msec() * 0.001 * multiplier
+
+### prefabs
+
+static func create_prefab(proto_node: Node, free_proto := false) -> PackedScene:
+	if not proto_node: return null
+	var scene := PackedScene.new()
+	for c: Node in Helpers.get_all_children(proto_node, false, true):
+		c.owner = proto_node
+	scene.pack(proto_node)
+	if free_proto: proto_node.queue_free()
+	elif proto_node.get_parent(): proto_node.get_parent().remove_child(proto_node)
+	return scene
 
 ### signals
 
