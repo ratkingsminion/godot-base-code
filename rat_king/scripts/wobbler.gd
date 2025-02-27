@@ -63,7 +63,6 @@ func _process(delta: float) -> void:
 			if wobble.target is Node3D:
 				var original_position = wobble.original_position
 				var pos := remap(sin(wobble.start_time + 20.0 * time), -1.0, 1.0, 0.0, wobble.strength)
-				print(time, " ", pos)
 				wobble.target.position = original_position + wobble.factor * pos * wobble.axis
 			# TODO target type Control
 
