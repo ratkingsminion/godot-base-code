@@ -1,9 +1,8 @@
-[gd_scene load_steps=12 format=3 uid="uid://b31t57a3tmvb3"]
+[gd_scene load_steps=11 format=3 uid="uid://b31t57a3tmvb3"]
 
-[ext_resource type="Script" path="res://addons/highlight_effect/viewport_fitter.gd" id="1_m7ahn"]
-[ext_resource type="PackedScene" uid="uid://dpdangc4xbxcc" path="res://dungeon/prefabs/dng_world_environment.tscn" id="1_skbnw"]
-[ext_resource type="Shader" path="res://addons/highlight_effect/highlight_effect_viewport.gdshader" id="2_ph237"]
-[ext_resource type="Shader" path="res://addons/highlight_effect/highlight_effect.gdshader" id="3_1eruk"]
+[ext_resource type="Script" path="res://highlight_effect/viewport_fitter.gd" id="1_m7ahn"]
+[ext_resource type="Shader" path="res://highlight_effect/highlight_effect_viewport.gdshader" id="2_ph237"]
+[ext_resource type="Shader" path="res://highlight_effect/highlight_effect.gdshader" id="3_1eruk"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ogtw3"]
 
@@ -42,8 +41,6 @@ flip_faces = true
 size = Vector2(2, 2)
 
 [node name="HighlightScene" type="Node3D"]
-
-[node name="WorldEnvironment" parent="." instance=ExtResource("1_skbnw")]
 
 [node name="Boxes" type="Node3D" parent="."]
 

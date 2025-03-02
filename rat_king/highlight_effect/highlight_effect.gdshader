@@ -10,7 +10,7 @@ uniform sampler2D depth_tex : hint_depth_texture, repeat_disable, filter_nearest
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_nearest;
 
 void vertex() {
-	POSITION = vec4(VERTEX, 1.0);
+	POSITION = vec4(VERTEX.xy, 1.0, 1.0);
 }
 
 float unpack_float(sampler2D tex, vec2 uv) {
@@ -24,7 +24,7 @@ void fragment() {
 	float d_h = unpack_float(highlighted_depth_tex, suv);
 	vec4 ss = texture(screen_tex, suv);
 	
-	bool is_inner = d > d_h && ss.a > 0.0;
+	bool is_inner = d < d_h && ss.a > 0.0;
 	bool is_outline = false; // = n > 0.0 && !is_inner;
 	
 	if (!is_inner) {
@@ -37,7 +37,7 @@ void fragment() {
 				if (n_ss_a > 0.0) {
 					float n_d = texture(depth_tex, n_uv).r;
 					float n_d_h = unpack_float(highlighted_depth_tex, n_uv);
-					is_outline = n_d > n_d_h;
+					is_outline = n_d < n_d_h;
 				}
 			}
 		}
