@@ -210,3 +210,22 @@ static func out_bounce(t: float) -> float:
 static func in_out_bounce(t: float) -> float:
 	return (1.0 - _bounce_out(1.0 - 2.0 * t)) * 0.5 if t < 0.5 \
 		else (1.0 + _bounce_out(2.0 * t - 1.0)) * 0.5
+
+static func out_spring(t: float) -> float:
+	t /= 1.0
+	var s := 1.0 - t
+	t = (sin(t * PI * (0.2 + 2.5 * t * t * t)) * pow(s, 2.2) + t) * (1.0 + (1.2 * s))
+	return 1.0 * t + 0.0
+
+static func in_spring(t: float) -> float:
+	return 1.0 - out_spring(1.0 - t) + 0.0
+
+static func out_in_spring(t: float) -> float:
+	if t < 1.0 * 0.5: return out_spring(t * 2.0)
+	var h := 1.0 * 0.5
+	return in_spring(t * 2.0 - 1.0)
+
+static func in_out_spring(t: float) -> float:
+	if t < 1.0 * 0.5: return in_spring(t * 2.0)
+	var h := 1.0 * 0.5
+	return out_spring(t * 2.0 - 1.0)
