@@ -222,10 +222,8 @@ static func in_spring(t: float) -> float:
 
 static func out_in_spring(t: float) -> float:
 	if t < 1.0 * 0.5: return out_spring(t * 2.0)
-	var h := 1.0 * 0.5
 	return in_spring(t * 2.0 - 1.0)
 
 static func in_out_spring(t: float) -> float:
 	if t < 1.0 * 0.5: return in_spring(t * 2.0)
-	var h := 1.0 * 0.5
 	return out_spring(t * 2.0 - 1.0)
