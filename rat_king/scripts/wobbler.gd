@@ -27,7 +27,7 @@ func _process(delta: float) -> void:
 	for idx: int in range(_cur_wobbles.size() - 1, -1, -1):
 		var wobble := _cur_wobbles[idx]
 		
-		if wobble == null or not is_instance_valid(wobble.target):
+		if not wobble or not is_instance_valid(wobble.target):
 			_cur_wobbles.remove_at(idx)
 			continue
 		
@@ -66,6 +66,15 @@ func _process(delta: float) -> void:
 				wobble.target.position = original_position + wobble.factor * pos * wobble.axis
 			# TODO target type Control
 
+static func stop(node: Node) -> bool:
+	var stopped := false
+	for idx: int in range(_cur_wobbles.size() - 1, -1, -1):
+		var wobble := _cur_wobbles[idx]
+		if not wobble or wobble.target == node:
+			_cur_wobbles.remove_at(idx)
+			stopped = true
+	return stopped
+
 static func wobble_x(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start := true) -> void:
 	wobble(node, strength, seconds, speed, Vector3.RIGHT, type, rnd_start)
 
@@ -79,7 +88,7 @@ static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, ax
 	if not node or strength == 0.0 or seconds <= 0.0: 
 		return
 	
-	if _inst == null:
+	if not _inst:
 		_inst = Wobbler.new()
 		node.get_tree().current_scene.add_child.call_deferred(_inst, true)
 	
