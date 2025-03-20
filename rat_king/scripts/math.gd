@@ -94,14 +94,14 @@ static func smooth_damp(cur: float, target: float, cur_velocity: Array[float], s
 	smooth_time = maxf(0.0001, smooth_time)
 	var omega := 2.0 / smooth_time
 	var x := omega * delta_time
-	var exp := 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
+	var expo := 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
 	var original_to := target
 	var max_change := max_speed * smooth_time
 	var change := clampf(cur - target, -max_change, max_change)
 	target = cur - change
 	var temp := (cur_velocity[0] + omega * change) * delta_time
-	cur_velocity[0] = (cur_velocity[0] - omega * temp) * exp
-	var result := target + (change + temp) * exp
+	cur_velocity[0] = (cur_velocity[0] - omega * temp) * expo
+	var result := target + (change + temp) * expo
 	if (original_to - cur > 0.0) == (result > original_to):
 		cur_velocity[0] = 0.0
 		return original_to
@@ -115,7 +115,7 @@ static func vec3_smooth_damp(cur: Vector3, target: Vector3, cur_velocity: Array[
 	smooth_time = maxf(0.0001, smooth_time)
 	var omega := 2.0 / smooth_time
 	var x := omega * delta_time
-	var exp := 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
+	var expo := 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
 	var change_x := cur.x - target.x
 	var change_y := cur.y - target.y
 	var change_z := cur.z - target.z
@@ -134,12 +134,12 @@ static func vec3_smooth_damp(cur: Vector3, target: Vector3, cur_velocity: Array[
 	var temp_x := (cur_velocity[0].x + omega * change_x) * delta_time
 	var temp_y := (cur_velocity[0].y + omega * change_y) * delta_time
 	var temp_z := (cur_velocity[0].z + omega * change_z) * delta_time
-	cur_velocity[0].x = (cur_velocity[0].x - omega * temp_x) * exp
-	cur_velocity[0].y = (cur_velocity[0].y - omega * temp_y) * exp
-	cur_velocity[0].z = (cur_velocity[0].z - omega * temp_z) * exp
-	output_x = target.x + (change_x + temp_x) * exp
-	output_y = target.y + (change_y + temp_y) * exp
-	output_z = target.z + (change_z + temp_z) * exp
+	cur_velocity[0].x = (cur_velocity[0].x - omega * temp_x) * expo
+	cur_velocity[0].y = (cur_velocity[0].y - omega * temp_y) * expo
+	cur_velocity[0].z = (cur_velocity[0].z - omega * temp_z) * expo
+	output_x = target.x + (change_x + temp_x) * expo
+	output_y = target.y + (change_y + temp_y) * expo
+	output_z = target.z + (change_z + temp_z) * expo
 	# prevent overshooting
 	var orig_minus_cur_x := original_to.x - cur.x
 	var orig_minus_cur_y := original_to.y - cur.y
