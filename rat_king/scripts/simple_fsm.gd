@@ -1,11 +1,11 @@
 class_name SimpleFSM
 extends Node
 
-## A method-based FSM node, created on-the-fly via code.
+## A method-based FSM node, created on-the-fly via code. Can be used on a single Object or several.
 ## Create an FSM like this:
 ##
 ## enum MyState { IDLE, WALK, DEAD }
-## var fsm := SimpleFSM.create(MyState, <target_object>)
+## var fsm := SimpleFSM.create(MyState, <target_object>) # do not use SimpleFSM.new()!
 ## fsm.set_state(MyState.IDLE)
 ##
 ## Possible methods in <target_object>:
@@ -14,46 +14,56 @@ extends Node
 ## func _can_change_state_<state_name>_from(prev: MyState) -> bool
 ## func _enter_state_<state_name>(prev: MyState) -> void
 ## func _leave_state_<state_name>(next: MyState) -> void
-## func _process_state_<state_name>(delta: float) -> void # only if <target_object> is a node
-## func _physics_process_state_<state_name>(delta: float) -> void # only if <target_object> is a node
-## func _input_state_<state_name>(event: InputEvent) -> void # only if <target_object> is a node
+## # the following methods only work if <target_object> is a node or a parent was provided in create():
+## func _process_state_<state_name>(delta: float) -> void
+## func _physics_process_state_<state_name>(delta: float) -> void
+## func _input_state_<state_name>(event: InputEvent) -> void
+## func _unhandled_input_state_<state_name>(event: InputEvent) -> void
+##
+## If <target_object> is an array of Objects (usually Nodes), it has to be the same
+## size as the MyState Dictionary/enum. Then every method is called on each respective
+## Object, as determined by their order, and the method names are shorted by omitting
+## the state name ("_enter_state" instead of "_enter_state_<state_name>").
 ##
 ## Usually <state_name> is the lower-case version of the MyState members, but
-## you can change this via the third parameter in SimpleFSM.create()
-
-static var _empty: Dictionary = { &"i": Callable(), &"p": Callable(), &"pp": Callable() }
-
-var _states: Dictionary = { } # int -> Dictionary[StringName -> Callable]
-var _state := -1
-var _process_callable := Callable()
-var _physics_process_callable := Callable()
-var _input_callable := Callable()
-var _can_process := true
+## you can change this via the respective parameter in SimpleFSM.create()
 
 signal state_changed(from: int, to: int)
 
+var _states := {} # Dictionary[int, Array]
+var _state_idx := -1
+var _state: Array = _empty # [ Callable, int, Callable, int, ... ]
+var _can_process := true
+
+static var _fn_names: Array[String] = [
+	"_can_change_state%s_to", "_can_change_state%s_from",
+	"_enter_state%s", "_leave_state%s",
+	"_process_state%s", "_physics_process_state%s",
+	"_input_state%s", "_unhandled_input%s" ]
+static var _empty := [ null, -1, null, -1, null, -1, null, -1, null, -1, null, -1, null, -1, null, -1 ]
+
 ###
 
-static func create(states: Dictionary, target: Object = null, force_lower := true) -> SimpleFSM:
+static func create(states: Dictionary, target, parent: Node = null, force_lowercase := true) -> SimpleFSM:
 	var fsm := SimpleFSM.new()
-	for s in states:
-		var str_name := StringName(str(s).to_lower() if force_lower else str(s))
-		var callables := { }
-		if target.has_method("_can_change_state_" + str_name + "_to"):
-			callables[&"ct"] = target["_can_change_state_" + str_name + "_to"]
-		if target.has_method("_can_change_state_" + str_name + "_from"):
-			callables[&"cf"] = target["_can_change_state_" + str_name + "_from"]
-		if target.has_method("_enter_state_" + str_name):
-			callables[&"e"] = target["_enter_state_" + str_name]
-		if target.has_method("_leave_state_" + str_name):
-			callables[&"l"] = target["_leave_state_" + str_name]
-		callables[&"p"] = target["_process_state_" + str_name] if target.has_method("_process_state_" + str_name) else Callable()
-		callables[&"pp"] = target["_physics_process_state_" + str_name] if target.has_method("_physics_process_state_" + str_name) else Callable()
-		callables[&"i"] = target["_input_state_" + str_name] if target.has_method("_input_state_" + str_name) else Callable()
-		fsm._states[states[s]] = callables
+	fsm.name = "FSM"
 	
-	if target != null and target is Node:
-		(target as Node).call_deferred("add_child", fsm)
+	for s in states:
+		var str_name := str(s).to_lower() if force_lowercase else str(s)
+		var state := []
+		var t = target if target is Object else target[states[s]]
+		if not t is Object: printerr("Parameter 'target' must only contain Objects"); return
+		for i: int in _fn_names.size():
+			var fn_name := _fn_names[i] % (("_" + str_name) if not target is Array else "")
+			var method = t[fn_name] if t.has_method(fn_name) else null
+			state.append(method)
+			var arg_count: int = -1 if not method else t.get_method_argument_count(fn_name)
+			if arg_count > 1: printerr("Too many arguments for method ", fn_name, " of ", str_name, "!"); return null
+			state.append(arg_count)
+		fsm._states[states[s]] = state
+	
+	if not parent and target is Node: parent = target as Node
+	if parent: parent.call_deferred("add_child", fsm, true)
 	
 	return fsm
 
@@ -61,37 +71,30 @@ static func create(states: Dictionary, target: Object = null, force_lower := tru
 
 func override_process(enabled: bool) -> void:
 	_can_process = enabled
-	set_process(enabled and _process_callable)
-	set_physics_process(enabled and _physics_process_callable)
-	set_process_input(enabled and _input_callable)
+	set_process(enabled and _has_method(_state, 4))
+	set_physics_process(enabled and _has_method(_state, 5))
+	set_process_input(enabled and _has_method(_state, 6))
+	set_process_unhandled_input(enabled and _has_method(_state, 7))
 
 func set_state(state: int, force := false) -> bool:
-	if _state == state:
+	if _state_idx == state:
 		return false
 		
-	var prev := (_states[_state] as Dictionary) if _states.has(_state) else _empty
-	var next := (_states[state] as Dictionary) if _states.has(state) else _empty
+	var next: Array = _states[state] if state in _states else _empty
 	
 	if not force:
-		if prev.has(&"ct") and not (prev[&"ct"] as Callable).call(state):
-			return false
-		if next.has(&"cf") and not (next[&"cf"] as Callable).call(_state):
-			return false
+		if _has_method(_state, 0) and not _call_condition(_state, 0, state): return false
+		if _has_method(next, 1) and not _call_condition(next, 1, _state_idx): return false
 	
-	if prev.has(&"l"):
-		(prev[&"l"] as Callable).call(state)
+	_call_method(_state, 3, state)
 	
-	var prev_state := _state
-	_state = state
-	state_changed.emit(prev_state, _state)
+	var prev_state := _state_idx
+	_state_idx = state
+	_state = _states[_state_idx]
+	state_changed.emit(prev_state, _state_idx)
 	
-	if next.has(&"e"):
-		(next[&"e"] as Callable).call(prev_state)
+	_call_method(next, 2, prev_state)
 
-	_process_callable = next[&"p"] as Callable
-	_physics_process_callable = next[&"pp"] as Callable
-	_input_callable = next[&"i"] as Callable
-	
 	override_process(_can_process)
 	
 	return true
@@ -100,7 +103,22 @@ func set_no_state(force := false) -> bool:
 	return set_state(-1, force)
 
 func get_state() -> int:
-	return _state
+	return _state_idx
+
+func _has_method(state: Array, idx: int) -> bool:
+	return state[idx * 2 + 1] >= 0 # and state[idx * 2]
+
+func _call_method(state: Array, idx: int, arg):
+	match state[idx * 2 + 1]:
+		-1: return
+		0: state[idx * 2].call()
+		_: state[idx * 2].call(arg)
+
+func _call_condition(state: Array, idx: int, arg) -> bool:
+	match state[idx * 2 + 1]:
+		-1: return false
+		0: return state[idx * 2].call()
+		_: return state[idx * 2].call(arg)
 
 ###
 
@@ -108,12 +126,13 @@ func _ready() -> void:
 	override_process(_can_process)
 
 func _process(delta: float) -> void:
-	_process_callable.call(delta)
+	_call_method(_state, 4, delta)
 
 func _physics_process(delta: float) -> void:
-	if _physics_process_callable:
-		_physics_process_callable.call(delta)
+	_call_method(_state, 5, delta)
 
 func _input(event: InputEvent) -> void:
-	if _input_callable:
-		_input_callable.call(event)
+	_call_method(_state, 6, event)
+
+func _unhandled_input(event: InputEvent) -> void:
+	_call_method(_state, 7, event)
