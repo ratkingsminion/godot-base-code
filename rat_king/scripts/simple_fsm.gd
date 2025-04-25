@@ -20,6 +20,8 @@ extends Node
 ## func _input_state_<state_name>(event: InputEvent) -> void
 ## func _unhandled_input_state_<state_name>(event: InputEvent) -> void
 ##
+## You can omit the parameter of each method.
+##
 ## If <target_object> is an array of Objects (usually Nodes), it has to be the same
 ## size as the MyState Dictionary/enum. Then every method is called on each respective
 ## Object, as determined by their order, and the method names are shorted by omitting
@@ -110,15 +112,14 @@ func _has_method(state: Array, idx: int) -> bool:
 
 func _call_method(state: Array, idx: int, arg):
 	match state[idx * 2 + 1]:
-		-1: return
 		0: state[idx * 2].call()
-		_: state[idx * 2].call(arg)
+		1: state[idx * 2].call(arg)
 
 func _call_condition(state: Array, idx: int, arg) -> bool:
 	match state[idx * 2 + 1]:
-		-1: return false
 		0: return state[idx * 2].call()
-		_: return state[idx * 2].call(arg)
+		1: return state[idx * 2].call(arg)
+	return false
 
 ###
 
