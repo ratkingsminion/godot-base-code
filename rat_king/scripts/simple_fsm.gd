@@ -50,7 +50,7 @@ static var _empty := [ null, -1, null, -1, null, -1, null, -1, null, -1, null, -
 
 ## states: Dictionary[int, String] or enum
 ## target: Object or Array of Objects
-## parent: parent for the FSM, needed if target is not a Node so the process methods are called
+## parent: optional parent for the FSM, needed if target is not a Node so the process methods are called
 ## force_Lowercase: change state names to lower case in method names and when using set_state_name()
 static func create(states: Dictionary, target, parent: Node = null, force_lowercase := true) -> SimpleFSM:
 	var fsm := SimpleFSM.new()
@@ -77,9 +77,9 @@ static func create(states: Dictionary, target, parent: Node = null, force_lowerc
 	return fsm
 
 ## state_nodes: Array of Nodes
-## parent: parent for the FSM, so the process methods are called
-## force_Lowercase: change state names to lower case in method names and when using set_state_name()
-static func create_by_nodes(state_nodes: Array, parent: Node = null, force_lowercase := true) -> SimpleFSM:
+## parent: optional parent for the FSM, so the process methods are called
+## force_Lowercase: change state names to lower case when using set_state_name()
+static func create_by_nodes(state_nodes: Array, parent: Node = null, force_lowercase := false) -> SimpleFSM:
 	if not state_nodes: return null
 	var dict := {}
 	for n in state_nodes:
@@ -137,6 +137,7 @@ func get_state_idx() -> int:
 	return _state_idx
 
 func get_state_name() -> String:
+	if _state_idx == -1: return "<no state>"
 	return _state_names[_state_idx]
 
 ###
