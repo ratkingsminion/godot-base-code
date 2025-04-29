@@ -84,8 +84,8 @@ static func create_by_nodes(state_nodes: Array, parent: Node = null, force_lower
 	var dict := {}
 	for n in state_nodes:
 		if not n is Node: printerr("Wrong type of state node"); return null
-		var str_name: String = (n.name.to_lower()) if force_lowercase else n.name
-		dict[dict.size()] = str_name
+		var str_name: String = n.name.to_lower() if force_lowercase else n.name
+		dict[str_name] = dict.size()
 	return create(dict, state_nodes, parent, force_lowercase)
 
 ###
