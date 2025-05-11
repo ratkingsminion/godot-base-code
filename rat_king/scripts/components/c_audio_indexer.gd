@@ -5,18 +5,16 @@ extends Component
 @export var audio_players: Array[Dictionary] = []
 @export var is_music := false
 
-var audio_players_by_id: Dictionary = {}
+var audio_players_by_id: Dictionary[StringName, Dictionary] = {}
 var cur_music := &""
 var cur_music_fade_time := 2.0
 
 func _get(property: StringName) -> Variant:
 	var i := int(str(property))
 	if property.ends_with("audio_player_id"):
-		if not audio_players[i].has("id"): return &""
-		return audio_players[i]["id"]
+		return audio_players[i].get("id", &"")
 	elif property.ends_with("audio_player_node_path"):
-		if not audio_players[i].has("node_path"): return null
-		return audio_players[i]["node_path"]
+		return audio_players[i].get("node_path", null)
 	match property:
 		&"additional_audio_players": return audio_players.size()
 	return null
@@ -112,14 +110,19 @@ func _process(delta: float) -> void:
 	if is_music:
 		for id: StringName in audio_players_by_id:
 			var ap: Dictionary = audio_players_by_id[id]
-			var target: float = 1.0 if cur_music == id else 0.0
-			ap["vol_factor"] = move_toward(ap["vol_factor"], target, delta / cur_music_fade_time)
-			if target == 0.0 and ap["vol_factor"] > 0.0: ap["node"].stream_paused = false
-			elif target == 1.0 and ap["vol_factor"] == 0.0: ap["node"].stream_paused = true
-			ap["node"].volume_db = linear_to_db(ap["std_vol_lin"] * ap["vol_factor"])
+			var vol: float = ap["vol_factor"]
+			var is_cur_music := cur_music == id
+			if is_cur_music and vol == 0.0: ap["node"].stream_paused = false
+			vol = move_toward(vol, 1.0 if is_cur_music else 0.0, delta / cur_music_fade_time)
+			if not is_cur_music and vol == 0.0: ap["node"].stream_paused = true
+			ap["node"].volume_db = linear_to_db(ap["std_vol_lin"] * vol)
+			ap["vol_factor"] = vol
 			#print(id, " ", ap["vol_music"], " ", ap["node"].volume_db, " ", ap["std_vol_lin"])
 
 ###
+
+func has_audio(id: StringName) -> bool:
+	return audio_players_by_id.has(id)
 
 func set_playing(id: StringName, play: bool) -> void:
 	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
