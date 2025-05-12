@@ -99,6 +99,7 @@ func _ready() -> void:
 			var ap: Dictionary = audio_players_by_id[id]
 			ap["vol_factor"] = 0.0 # start muted
 			ap["node"].volume_db = linear_to_db(0.0)
+			ap["node"].stream_paused = true
 	else:
 		process_mode = Node.PROCESS_MODE_DISABLED
 
@@ -110,13 +111,13 @@ func _process(delta: float) -> void:
 	if is_music:
 		for id: StringName in audio_players_by_id:
 			var ap: Dictionary = audio_players_by_id[id]
-			var vol: float = ap["vol_factor"]
 			var is_cur_music := cur_music == id
-			if is_cur_music and vol == 0.0: ap["node"].stream_paused = false
-			vol = move_toward(vol, 1.0 if is_cur_music else 0.0, delta / cur_music_fade_time)
-			if not is_cur_music and vol == 0.0: ap["node"].stream_paused = true
-			ap["node"].volume_db = linear_to_db(ap["std_vol_lin"] * vol)
-			ap["vol_factor"] = vol
+			var vol: float = ap["vol_factor"]
+			var next_vol := move_toward(vol, 1.0 if is_cur_music else 0.0, delta / cur_music_fade_time)
+			if vol == 0.0 and next_vol > 0.0: ap["node"].stream_paused = false
+			elif next_vol == 0.0 and vol > 0.0: ap["node"].stream_paused = true
+			ap["node"].volume_db = linear_to_db(ap["std_vol_lin"] * next_vol)
+			ap["vol_factor"] = next_vol
 			#print(id, " ", ap["vol_music"], " ", ap["node"].volume_db, " ", ap["std_vol_lin"])
 
 ###
