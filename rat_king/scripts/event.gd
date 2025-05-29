@@ -93,7 +93,8 @@ class Signal_3:
 ### targeted events, wrapping Godot's signals and user signals
 
 class Targeted_0:
-	signal event(target: Object)
+	signal event_targets(target: Object)
+	signal event_anything(target: Object)
 	var _signal_id: StringName
 	var _target: String
 	var _params: String
@@ -109,8 +110,11 @@ class Targeted_0:
 		target.connect(_signal_id, callable)
 		return true
 	
-	func register(callable: Callable) -> void:
-		event.connect(callable)
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
 		if not is_instance_valid(target): return false
@@ -119,14 +123,16 @@ class Targeted_0:
 		return true
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: Object) -> bool:
 		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id)
-		event.emit(target)
+			event_targets.emit(target)
+		event_anything.emit(target)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
@@ -136,10 +142,10 @@ class Targeted_0:
 			if (conn["signal"] as Signal).get_object() == target:
 				return true
 		return false
-		
 
 class Targeted_1:
-	signal event(target: Object, val)
+	signal event_targets(target: Object, val)
+	signal event_anything(target: Object, val)
 	var _signal_id: StringName
 	var _target: String
 	var _params: String
@@ -155,8 +161,11 @@ class Targeted_1:
 		target.connect(_signal_id, callable)
 		return true
 	
-	func register(callable: Callable) -> void:
-		event.connect(callable)
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
 		if not is_instance_valid(target): return false
@@ -165,14 +174,16 @@ class Targeted_1:
 		return true
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: Object, val) -> bool:
 		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id, val)
-		event.emit(target, val)
+			event_targets.emit(target, val)
+		event_anything.emit(target, val)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
@@ -184,7 +195,8 @@ class Targeted_1:
 		return false
 
 class Targeted_2:
-	signal event(target: Object, val1, val2)
+	signal event_targets(target: Object, val1, val2)
+	signal event_anything(target: Object, val1, val2)
 	var _signal_id: StringName
 	var _target: String
 	var _params: String
@@ -200,8 +212,11 @@ class Targeted_2:
 		target.connect(_signal_id, callable)
 		return true
 	
-	func register(callable: Callable) -> void:
-		event.connect(callable)
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
 		if not is_instance_valid(target): return false
@@ -210,14 +225,16 @@ class Targeted_2:
 		return true
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: Object, val1, val2) -> bool:
 		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id, val1, val2)
-		event.emit(target, val1, val2)
+			event_targets.emit(target, val1, val2)
+		event_anything.emit(target, val1, val2)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
@@ -229,7 +246,8 @@ class Targeted_2:
 		return false
 
 class Targeted_3:
-	signal event(target: Object, val1, val2, val3)
+	signal event_targets(target: Object, val1, val2, val3)
+	signal event_anything(target: Object, val1, val2, val3)
 	var _signal_id: StringName
 	var _target: String
 	var _params: String
@@ -243,11 +261,13 @@ class Targeted_3:
 		if not is_instance_valid(target): return false
 		if not target.has_user_signal(_signal_id): target.add_user_signal(_signal_id)
 		target.connect(_signal_id, callable)
-		event.connect(callable)
 		return true
 	
-	func register(callable: Callable) -> void:
-		event.connect(callable)
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: Object, callable: Callable) -> bool:
 		if not is_instance_valid(target): return false
@@ -256,14 +276,16 @@ class Targeted_3:
 		return true
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: Object, val1, val2, val3) -> bool:
 		if is_instance_valid(target) and target.has_user_signal(_signal_id):
 			target.emit_signal(_signal_id, val1, val2, val3)
-		event.emit(target, val1, val2, val3)
+			event_targets.emit(target, val1, val2, val3)
+		event_anything.emit(target, val1, val2, val3)
 		return true
 	
 	func is_registered_for(target: Object) -> bool:
@@ -298,7 +320,8 @@ class Targeted_String_0:
 			emit_signal(_signal_id)
 
 	var _targets: Dictionary
-	signal event(target: StringName)
+	signal event_targets(target: StringName)
+	signal event_anything(target: StringName)
 	var _target: String
 	
 	func _init(target := "") -> void:
@@ -309,9 +332,11 @@ class Targeted_String_0:
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
-	func register(callable: Callable) -> bool:
-		event.connect(callable)
-		return true
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
@@ -319,13 +344,16 @@ class Targeted_String_0:
 		return _targets[target].disconnect(callable)
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: StringName) -> bool:
-		if _targets.has(target): _targets[target].emit()
-		event.emit(target)
+		if _targets.has(target):
+			_targets[target].emit()
+			event_targets.emit(target)
+		event_anything.emit(target)
 		return true
 	
 	func is_registered_for(target: StringName) -> bool:
@@ -353,7 +381,8 @@ class Targeted_String_1:
 			emit_signal(_signal_id, val)
 
 	var _targets: Dictionary
-	signal event(target: StringName, val)
+	signal event_targets(target: StringName, val)
+	signal event_anything(target: StringName, val)
 	var _target: String
 	var _params: String
 	
@@ -366,9 +395,11 @@ class Targeted_String_1:
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
-	func register(callable: Callable) -> bool:
-		event.connect(callable)
-		return true
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
@@ -376,13 +407,16 @@ class Targeted_String_1:
 		return _targets[target].disconnect(callable)
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: StringName, val) -> bool:
-		if _targets.has(target): _targets[target].emit(val)
-		event.emit(target, val)
+		if _targets.has(target):
+			_targets[target].emit(val)
+			event_targets.emit(target, val)
+		event_anything.emit(target, val)
 		return true
 	
 	func is_registered_for(target: StringName) -> bool:
@@ -410,7 +444,8 @@ class Targeted_String_2:
 			emit_signal(_signal_id, val1, val2)
 
 	var _targets: Dictionary
-	signal event(target: StringName, val1, val2)
+	signal event_targets(target: StringName, val1, val2)
+	signal event_anything(target: StringName, val1, val2)
 	var _target: String
 	var _params: String
 	
@@ -423,9 +458,11 @@ class Targeted_String_2:
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
-	func register(callable: Callable) -> bool:
-		event.connect(callable)
-		return true
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
@@ -433,13 +470,16 @@ class Targeted_String_2:
 		return _targets[target].disconnect(callable)
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: StringName, val1, val2) -> bool:
-		if _targets.has(target): _targets[target].emit(val1, val2)
-		event.emit(target, val1, val2)
+		if _targets.has(target):
+			_targets[target].emit(val1, val2)
+			event_targets.emit(target, val1, val2)
+		event_anything.emit(target, val1, val2)
 		return true
 	
 	func is_registered_for(target: StringName) -> bool:
@@ -467,7 +507,8 @@ class Targeted_String_3:
 			emit_signal(_signal_id, val1, val2, val3)
 
 	var _targets: Dictionary
-	signal event(target: StringName, val1, val2, val3)
+	signal event_targets(target: StringName, val1, val2, val3)
+	signal event_anything(target: StringName, val1, val2, val3)
 	var _target: String
 	var _params: String
 	
@@ -480,9 +521,11 @@ class Targeted_String_3:
 		if not _targets.has(target): _targets[target] = _TargetedString.new()
 		return _targets[target].register(callable)
 	
-	func register(callable: Callable) -> bool:
-		event.connect(callable)
-		return true
+	func register_for_all_targets(callable: Callable) -> void:
+		event_targets.connect(callable)
+	
+	func register_for_anything(callable: Callable) -> void:
+		event_anything.connect(callable)
 	
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
@@ -490,13 +533,16 @@ class Targeted_String_3:
 		return _targets[target].disconnect(callable)
 	
 	func unregister(callable: Callable) -> bool:
-		if not event.is_connected(callable): return false
-		event.disconnect(callable)
-		return true
+		var res := false
+		if event_targets.is_connected(callable): event_targets.disconnect(callable); res = true
+		if event_anything.is_connected(callable): event_anything.disconnect(callable); res = true
+		return res
 
 	func emit_to(target: StringName, val1, val2, val3) -> bool:
-		if _targets.has(target): _targets[target].emit(val1, val2, val3)
-		event.emit(target, val1, val2, val3)
+		if _targets.has(target):
+			_targets[target].emit(val1, val2, val3)
+			event_targets.emit(target, val1, val2, val3)
+		event_anything.emit(target, val1, val2, val3)
 		return true
 	
 	func is_registered_for(target: StringName) -> bool:
