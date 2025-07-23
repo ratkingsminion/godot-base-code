@@ -341,7 +341,7 @@ class Targeted_String_0:
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
 		if not _targets.has(target): return false
-		return _targets[target].disconnect(callable)
+		return _targets[target].unregister(callable)
 	
 	func unregister(callable: Callable) -> bool:
 		var res := false
@@ -404,7 +404,7 @@ class Targeted_String_1:
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
 		if not _targets.has(target): return false
-		return _targets[target].disconnect(callable)
+		return _targets[target].unregister(callable)
 	
 	func unregister(callable: Callable) -> bool:
 		var res := false
@@ -467,7 +467,7 @@ class Targeted_String_2:
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
 		if not _targets.has(target): return false
-		return _targets[target].disconnect(callable)
+		return _targets[target].unregister(callable)
 	
 	func unregister(callable: Callable) -> bool:
 		var res := false
@@ -530,7 +530,7 @@ class Targeted_String_3:
 	func unregister_for(target: StringName, callable: Callable) -> bool:
 		if not target: return false
 		if not _targets.has(target): return false
-		return _targets[target].disconnect(callable)
+		return _targets[target].unregister(callable)
 	
 	func unregister(callable: Callable) -> bool:
 		var res := false
