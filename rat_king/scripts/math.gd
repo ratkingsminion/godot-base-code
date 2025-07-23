@@ -87,6 +87,9 @@ static func frin_lerp_angle(a: float, b: float, t: float, delta: float, hertz :=
 	if dd > PI: dd -= TAU
 	return a + dd * (1.0 - ((1.0 - t) ** (delta * hertz)))
 
+static func basis_frin_slerp(a: Basis, b: Basis, t: float, delta: float, hertz = 60.0) -> Basis:
+	return a.orthonormalized().slerp(b.orthonormalized(), 1.0 - ((1.0 - t) ** (delta * hertz)))
+
 ### smooth damping
 
 # from https://github.com/Unity-Technologies/UnityCsReference/blob/master/Runtime/Export/Math/Mathf.cs
