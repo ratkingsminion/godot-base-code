@@ -11,14 +11,14 @@ var is_active := true
 
 ###
 
-static func find(node: Node, component_name: StringName) -> Node:
-	return Helpers.find_type_in_children(node, component_name)
+static func find(node: Node, component: Variant) -> Node:
+	return Helpers.find_in_children(node, component)
 
 ###
 
 # use from components
-func find_type_in_siblings(component_name: StringName) -> Node:
-	return Helpers.find_type_in_children(get_parent(), component_name)
+func find_in_siblings(component: Variant) -> Node:
+	return Helpers.find_in_children(get_parent(), component)
 
 func deactivate() -> void:
 	if not is_active: return

@@ -1,22 +1,25 @@
 class_name Helpers
 
-static var _classes: Dictionary
-static var _scripts: Dictionary
 static var _tree: SceneTree = Engine.get_main_loop()
 
 ###
 
-static func _static_init() -> void:
-	for c: Dictionary in ProjectSettings.get_global_class_list():
-		_classes[c.class] = c.path
-		_scripts[c.class] = load(c.path)
+static func quit(obj: Object):
+	Engine.get_main_loop().quit()
+	obj.free()
 
 static func set_tree(tree: SceneTree) -> void:
 	_tree = tree
 
+### uid
+
+static func uid_to_file(uid: String) -> String:
+	if not uid.begins_with("uid:"): return uid
+	return ResourceUID.get_id_path(ResourceUID.text_to_id(uid))
+
 ### csv
 
-static func test_csv_file(file: String):
+static func test_csv_file(file: String) -> void:
 	var f := FileAccess.open(file, FileAccess.READ)
 	var l := 1
 	while not f.eof_reached(): # iterate through all lines until the end of file is reached
@@ -25,6 +28,19 @@ static func test_csv_file(file: String):
 			printerr("WRONG QUOTE COUNT IN ", file, ": [LINE ", l, "] ", line.count("\""))
 		l += 1
 	f.close()
+	
+static func count_csv_file_words(file: String, idx := 0) -> int:
+	var rq := RegEx.create_from_string(r"\"(.*?(?<!\\))\"")
+	var rw := RegEx.create_from_string("[A-Za-z]+")
+	var wc := 0
+	var f := FileAccess.open(file, FileAccess.READ)
+	while not f.eof_reached(): # iterate through all lines until the end of file is reached
+		var contents := rq.search_all(f.get_line())
+		if contents and contents.size() >= idx:
+			wc += rw.search_all(contents[idx].get_string()).size()
+	print("Word count of ", file, " [", idx, "]: ", wc)
+	f.close()
+	return wc
 
 ### screenshots
 
@@ -40,7 +56,8 @@ static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
 	var timestamp := Time.get_datetime_string_from_system(false, true).replace(" ", "_").replace(":", "").replace("-", "")
 	path = path + "_" + timestamp + (".jpg" if as_jpg else ".png")
 	var res := image.save_jpg(path) if as_jpg else image.save_png(path)
-	if res == OK: print(str("screenshot saved: ", path))
+	if res == OK:
+		GameUi.log(Game.inst.tr("UI_LOG_CREATE_SCREENSHOT").format({ "path": path }))
 
 ### find nodes and classes
 
@@ -50,116 +67,48 @@ static func get_all_children(node: Node, include_self := false, include_internal
 	if include_self:
 		result.append(node)
 	while to_check.size() > 0:
-		var c := (to_check.pop_back() as Node).get_children(include_internal) # pop_front is slow unfortunately
+		var c := (to_check.pop_front() as Node).get_children(include_internal) # pop_front is slow unfortunately
 		result.append_array(c)
 		to_check.append_array(c)
 	return result
 
 #
 
-## class does not respect class_name! use find_type for that
-static func find_class_in_children(node: Node, name_of_class: StringName, include_self := true, include_internal := false) -> Node:
+static func find_in_children(node: Node, type: Variant, include_self := true, include_internal := false) -> Node:
 	if node == null: return null
-	if include_self and node.is_class(name_of_class): return node
+	if include_self and is_instance_of(node, type): return node
 	for child: Node in node.get_children(include_internal):
-		if child.is_class(name_of_class): return child
+		if is_instance_of(child, type): return child
 	return null
 
-## class does not respect class_name! use find_type for that
-static func find_all_class_in_children(node: Node, name_of_class: StringName, include_self := true, include_internal := false) -> Array[Node]:
+static func find_all_in_children(node: Node, type: Variant, include_self := true, include_internal := false) -> Array[Node]:
 	if node == null: return []
 	var result: Array[Node] = []
-	if include_self and node.is_class(name_of_class): result.push_back(node)
+	if include_self and is_instance_of(node, type): result.push_back(node)
 	for child: Node in node.get_children(include_internal):
-		if child.is_class(name_of_class): result.push_back(child)
+		if is_instance_of(child, type): result.push_back(child)
 	return result
 
-## class does not respect class_name! use find_type for that
-static func find_class_in_all_children(node: Node, name_of_class: StringName, include_self := true, include_internal := false) -> Node:
+static func find_in_all_children(node: Node, type: Variant, include_self := true, include_internal := false) -> Node:
 	if node == null: return null
-	if include_self and node.is_class(name_of_class): return node
+	if include_self and is_instance_of(node, type): return node
 	for child: Node in Helpers.get_all_children(node, false, include_internal):
-		if child.is_class(name_of_class): return child
+		if is_instance_of(child, type): return child
 	return null
 
-## class does not respect class_name! use find_type for that
-static func find_all_class_in_all_children(node: Node, name_of_class: StringName, include_self := true, include_internal := false) -> Array[Node]:
+static func find_all_in_all_children(node: Node, type: Variant, include_self := true, include_internal := false) -> Array[Node]:
 	if node == null: return []
 	var result: Array[Node] = []
 	for child: Node in Helpers.get_all_children(node, include_self, include_internal):
-		if child.is_class(name_of_class): result.push_back(child)
+		if is_instance_of(child, type): result.push_back(child)
 	return result
 
-## class does not respect class_name! use find_type for that
-static func find_class_in_all_parents(node: Node, name_of_class: StringName, include_self := true) -> Node:
+static func find_in_all_parents(node: Node, type: Variant, include_self := true) -> Node:
 	if node == null: return null
-	if include_self and node.is_class(name_of_class): return node
+	if include_self and is_instance_of(node, type): return node
 	node = node.get_parent()
 	while node != null:
-		if node.is_class(name_of_class): return node
-		node = node.get_parent()
-	return null
-
-#
-
-## this does not recognize a custom type (class_name) inheriting from another custom type!
-static func find_type_in_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Node:
-	if node == null: return null
-	if include_self and node.is_class(name_of_type): return node
-	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
-		return node
-	for child: Node in node.get_children(include_internal):
-		if child.is_class(name_of_type): return child
-		if child.get_script() != null and _scripts[name_of_type] == child.get_script():
-			return child
-	return null
-
-## this does not recognize a custom type (class_name) inheriting from another custom type!
-static func find_all_type_in_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Array[Node]:
-	if node == null: return []
-	var result: Array[Node] = []
-	if include_self and node.is_class(name_of_type): result.push_back(node)
-	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
-		result.push_back(node)
-	for child: Node in node.get_children(include_internal):
-		if child.is_class(name_of_type): result.push_back(child)
-		if child.get_script() != null and _scripts[name_of_type] == child.get_script():
-			result.push_back(child)
-	return result
-
-## this does not recognize a custom type (class_name) inheriting from another custom type!
-static func find_type_in_all_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Node:
-	if node == null: return null
-	if include_self and node.is_class(name_of_type): return node
-	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
-		return node
-	for child: Node in Helpers.get_all_children(node, false, include_internal):
-		if child.is_class(name_of_type): return child
-		var script = child.get_script()
-		if script != null and _scripts[name_of_type] == script: return child
-	return null
-
-## this does not recognize a custom type (class_name) inheriting from another custom type!
-static func find_all_type_in_all_children(node: Node, name_of_type: StringName, include_self := true, include_internal := false) -> Array[Node]:
-	if node == null: return []
-	var result: Array[Node] = []
-	for child: Node in Helpers.get_all_children(node, include_self, include_internal):
-		if child.is_class(name_of_type): result.push_back(child)
-		var script = child.get_script()
-		if script != null and _scripts[name_of_type] == script: result.push_back(child)
-	return result
-
-## this does not recognize a custom type (class_name) inheriting from another custom type!
-static func find_type_in_all_parents(node: Node, name_of_type: StringName, include_self := true) -> Node:
-	if node == null: return null
-	if include_self and node.is_class(name_of_type): return node
-	if include_self and node.get_script() != null and _scripts[name_of_type] == node.get_script():
-		return node
-	node = node.get_parent()
-	while node != null:
-		if node.is_class(name_of_type): return node
-		if node.get_script() != null and _scripts[name_of_type] == node.get_script():
-			return node
+		if is_instance_of(node, type): return node
 		node = node.get_parent()
 	return null
 	
@@ -179,7 +128,7 @@ static func scroll_container_to_end(container: Control, forced := false) -> void
 	var count := container.get_child_count()
 	if not forced and container.get_meta("scroll_last_count", 0) == count:
 		return
-	var _scroller: ScrollContainer = Helpers.find_class_in_all_parents(container, "ScrollContainer")
+	var _scroller: ScrollContainer = Helpers.find_in_all_parents(container, ScrollContainer)
 	_scroller.scroll_vertical = int(container.size.y)
 	container.set_meta("scroll_last_count", count)
 	
@@ -192,9 +141,9 @@ static func tree_do_next_frame(on_complete: Callable) -> void:
 
 ## coroutine
 static func do_next_frame(node: Node, on_complete: Callable) -> void:
-	if not node: return
+	if not is_instance_valid(node): return
 	await node.get_tree().process_frame
-	on_complete.call()
+	if is_instance_valid(node): on_complete.call()
 
 ## coroutine
 static func tree_timeout(seconds: float) -> void:
@@ -219,7 +168,9 @@ static func cur_time(multiplier := 1.0) -> float:
 ### prefabs
 
 static func create_prefab(proto_node: Node, free_proto := false) -> PackedScene:
-	if not proto_node: return null
+	if not proto_node:
+		printerr("Trying to create prefab from null")
+		return null
 	var scene := PackedScene.new()
 	for c: Node in Helpers.get_all_children(proto_node, false, true):
 		c.owner = proto_node
@@ -228,8 +179,26 @@ static func create_prefab(proto_node: Node, free_proto := false) -> PackedScene:
 	elif proto_node.get_parent(): proto_node.get_parent().remove_child(proto_node)
 	return scene
 
+static func create_node_3d(parent: Node, node_name: String) -> Node3D:
+	var node := Node3D.new()
+	node.name = node_name
+	if parent: parent.add_child(node)
+	return node
+	
+
 ### signals
 
 static func clear_signal_connections(s: Signal) -> void:
 	for sc: Dictionary in s.get_connections():
 		s.disconnect(sc["callable"])
+
+### randomness
+
+static func shuffle(array, rnd: RandomNumberGenerator) -> void:
+	var idx: int = array.size()
+	while idx > 0:
+		var r := rnd.randi_range(0, idx - 1)
+		idx -= 1
+		var t = array[idx]
+		array[idx] = array[r]
+		array[r] = t
