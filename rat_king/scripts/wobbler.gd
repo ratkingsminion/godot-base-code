@@ -14,7 +14,7 @@ class Wobble:
 	var original_scale # can be vector3 or vector2
 	var original_rotation # can be vector3 or float
 	var original_position # can be vector3 or vector2
-	var start_time := 0.0
+	var time := 0.0
 	var speed := 1.0
 	var axis # can be vector3 or vector2 or nothing (if Control)
 
@@ -32,8 +32,8 @@ func _process(delta: float) -> void:
 			continue
 		
 		wobble.seconds -= delta
-		var time := (wobble.start_seconds - wobble.seconds) * wobble.speed
-		var target_factor = clampf(wobble.seconds / wobble.start_seconds, 0.0, 1.0)
+		wobble.time += wobble.speed * delta
+		var target_factor := clampf(wobble.seconds / wobble.start_seconds, 0.0, 1.0)
 		wobble.factor = move_toward(wobble.factor, target_factor, delta * 10.0)
 		
 		if wobble.factor <= 0.0 and wobble.seconds <= 0.0:
@@ -46,7 +46,7 @@ func _process(delta: float) -> void:
 		if wobble.type == Type.SCALE:
 			var original_scale = wobble.original_scale
 			var scale := lerpf(1.0,
-				remap(sin(wobble.start_time + 20.0 * time), -1.0, 1.0, lerpf(1.0, 0.75, wobble.strength), lerpf(1.0, 1.5, wobble.strength)),
+				remap(sin(20.0 * wobble.time), -1.0, 1.0, lerpf(1.0, 0.75, wobble.strength), lerpf(1.0, 1.5, wobble.strength)),
 				wobble.factor)
 			if wobble.target is Node3D:
 				wobble.target.scale = Math.vec3_lerp(original_scale, original_scale * scale, wobble.axis)
@@ -56,14 +56,14 @@ func _process(delta: float) -> void:
 		elif wobble.type == Type.ROTATE:
 			if wobble.target is Node3D:
 				wobble.target.rotation = wobble.original_rotation
-				wobble.target.rotate(wobble.axis, wobble.strength * wobble.factor * sin(wobble.start_time + 10 * time) * 0.5)
+				wobble.target.rotate(wobble.axis, wobble.strength * wobble.factor * sin(10 * wobble.time) * 0.5)
 			elif wobble.target is Node2D or wobble.target is Control:
-				wobble.target.rotation = wobble.original_rotation + wobble.strength * wobble.factor * sin(wobble.start_time + 10 * time) * 0.5
+				wobble.target.rotation = wobble.original_rotation + wobble.strength * wobble.factor * sin(10 * wobble.time) * 0.5
 			# TODO target type Control
 		
 		elif wobble.type == Type.MOVE_HOP:
 			var original_position = wobble.original_position
-			var pos := remap(sin(wobble.start_time + 20.0 * time), -1.0, 1.0, 0.0, wobble.strength)
+			var pos := remap(sin(20.0 * wobble.time), -1.0, 1.0, 0.0, wobble.strength)
 			wobble.target.position = original_position + wobble.factor * pos * wobble.axis
 
 static func stop(node: Node) -> bool:
@@ -108,7 +108,7 @@ static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, ax
 	wobble.original_scale = node.scale
 	wobble.original_rotation = node.rotation
 	wobble.original_position = node.position
-	wobble.start_time = randf() * PI if rnd_start else 0.0
+	wobble.time = randf() * PI if rnd_start else 0.0
 	wobble.speed = speed
 	if node is Node3D and axis is Vector3:
 		wobble.axis = axis
