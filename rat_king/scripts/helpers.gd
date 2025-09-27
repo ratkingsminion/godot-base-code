@@ -57,7 +57,7 @@ static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
 	path = path + "_" + timestamp + (".jpg" if as_jpg else ".png")
 	var res := image.save_jpg(path) if as_jpg else image.save_png(path)
 	if res == OK:
-		GameUi.log(Game.inst.tr("UI_LOG_CREATE_SCREENSHOT").format({ "path": path }))
+		print("Screenshot taken: ", path)
 
 ### find nodes and classes
 
