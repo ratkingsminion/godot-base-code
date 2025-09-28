@@ -23,7 +23,7 @@ static func register(node: Node) -> void:
 	if node == null: print("check_mouse: trying to register null node"); return
 	var control := node as Control
 	if control == null:
-		control = Helpers.find_class_in_all_children(node, &"Control", true, true)
+		control = Helpers.find_in_all_children(node, Control, true, true)
 		if control == null:
 			print("check_mouse: node ", node.name, " is not a Control and has no Control child")
 			return
