@@ -90,6 +90,7 @@ static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, ax
 	
 	if not _inst:
 		_inst = Wobbler.new()
+		_inst.name = "Wobbler"
 		node.get_tree().current_scene.add_child.call_deferred(_inst, true)
 	
 	var list := _cur_wobbles.filter(func(w: Wobble) -> bool: return w.target == node and w.type == type)

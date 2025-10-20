@@ -45,3 +45,15 @@ static func random_id(count := 8, items := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
 	for i in count:
 		res += items[randi_range(0, items.length() - 1)]
 	return res
+
+static func tagify(text: String, marker := "**", start_tag := "[color=green]", end_tag := "[/color]") -> String:
+	if not text.contains(marker): return text
+	var t := text
+	var ml := marker.length()
+	while t.contains(marker):
+		var a := text.find(marker)
+		var b := text.find(marker, a + ml)
+		if b == -1: break
+		t = text.substr(b + ml)
+		text = text.substr(0, a) + start_tag + text.substr(a + ml, b - a - ml) + end_tag + text.substr(b + ml)
+	return text
