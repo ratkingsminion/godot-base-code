@@ -1,8 +1,8 @@
 [gd_scene load_steps=11 format=3 uid="uid://b31t57a3tmvb3"]
 
-[ext_resource type="Script" path="res://highlight_effect/viewport_fitter.gd" id="1_m7ahn"]
-[ext_resource type="Shader" path="res://highlight_effect/highlight_effect_viewport.gdshader" id="2_ph237"]
-[ext_resource type="Shader" path="res://highlight_effect/highlight_effect.gdshader" id="3_1eruk"]
+[ext_resource type="Script" path="res://rat_king/highlight_effect/viewport_fitter.gd" id="1_m7ahn"]
+[ext_resource type="Shader" path="res://rat_king/highlight_effect/highlight_effect_viewport.gdshader" id="2_ph237"]
+[ext_resource type="Shader" path="res://rat_king/highlight_effect/highlight_effect.gdshader" id="3_1eruk"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ogtw3"]
 

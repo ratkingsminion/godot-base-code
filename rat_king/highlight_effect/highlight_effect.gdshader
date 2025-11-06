@@ -1,6 +1,7 @@
 shader_type spatial;
 render_mode cull_disabled, unshaded, shadows_disabled, fog_disabled;
 
+uniform bool depth_testing = true;
 uniform int width_outline = 1;
 uniform vec4 color_inner : source_color = vec4(1.0, 1.0, 1.0, 0.5);
 uniform vec4 color_outline : source_color = vec4(1.0, 1.0, 1.0, 1.0);
@@ -24,11 +25,11 @@ void fragment() {
 	float d_h = unpack_float(highlighted_depth_tex, suv);
 	vec4 ss = texture(screen_tex, suv);
 	
-	bool is_inner = d < d_h && ss.a > 0.0;
+	bool is_inner = depth_testing ? d < d_h && ss.a > 0.0 : d_h > 0.001;
 	bool is_outline = false; // = n > 0.0 && !is_inner;
 	
 	if (!is_inner) {
-	vec2 p = 1.0 / vec2(VIEWPORT_SIZE.xy);
+		vec2 p = 1.0 / vec2(VIEWPORT_SIZE.xy);
 		for (int x = -width_outline; x <= width_outline && !is_outline; ++x) {
 			for (int y = -width_outline; y <= width_outline && !is_outline; ++y) {
 				if (y == 0 && x == 0) { continue; }
@@ -37,7 +38,7 @@ void fragment() {
 				if (n_ss_a > 0.0) {
 					float n_d = texture(depth_tex, n_uv).r;
 					float n_d_h = unpack_float(highlighted_depth_tex, n_uv);
-					is_outline = n_d < n_d_h;
+					is_outline = depth_testing ? n_d < n_d_h : n_d_h > 0.001;
 				}
 			}
 		}
