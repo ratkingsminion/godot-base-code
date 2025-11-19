@@ -46,6 +46,8 @@ func get_data(name: String, default_value):
 	if data.has(name):
 		if default_value is int and data[name] is float: return data[name]
 		elif default_value is float and data[name] is int: return data[name]
+		elif default_value is String and data[name] is StringName: return data[name]
+		elif default_value is StringName and data[name] is String: return data[name]
 		elif typeof(default_value) == typeof(data[name]): return data[name]
 	return default_value
 
