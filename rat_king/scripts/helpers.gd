@@ -160,7 +160,7 @@ static func timeout(node: Node, seconds: float) -> void:
 	node.add_child(timer)
 	timer.start(seconds)
 	await timer.timeout
-	if node: node.remove_child(timer)
+	if timer: timer.queue_free()
 
 static func cur_time(multiplier := 1.0) -> float:
 	return Time.get_ticks_msec() * 0.001 * multiplier
@@ -173,7 +173,7 @@ static func create_prefab(proto_node: Node, free_proto := false) -> PackedScene:
 		return null
 	var scene := PackedScene.new()
 	for c: Node in Helpers.get_all_children(proto_node, false, true):
-		c.owner = proto_node
+		if c.owner == proto_node.owner: c.owner = proto_node
 	scene.pack(proto_node)
 	if free_proto: proto_node.queue_free()
 	elif proto_node.get_parent(): proto_node.get_parent().remove_child(proto_node)
