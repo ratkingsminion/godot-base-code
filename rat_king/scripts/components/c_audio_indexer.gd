@@ -126,7 +126,7 @@ func _process(delta: float) -> void:
 ###
 
 func has_audio(id: StringName) -> bool:
-	return audio_players_by_id.has(id)
+	return id in audio_players_by_id
 
 func set_playing(id: StringName, play: bool) -> void:
 	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
@@ -135,7 +135,11 @@ func set_playing(id: StringName, play: bool) -> void:
 	if play: ap["node"].play()
 	else: ap["node"].stop()
 
-func stop(id: StringName) -> void:
+func stop(id: StringName = &"") -> void:
+	if not id:
+		for ap: Dictionary in audio_players_by_id.values(): ap["node"].stop()
+		return
+	
 	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
 	var ap: Dictionary = audio_players_by_id[id]
 	ap["node"].stop()
@@ -150,13 +154,14 @@ func unpause(id: StringName) -> void:
 	var ap: Dictionary = audio_players_by_id[id]
 	ap["node"].stream_paused = false
 
-func music_fade_in(id: StringName, fade_time := 2.0) -> void:
-	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
+func music_fade_in(id: StringName, fade_time := 2.0) -> bool:
+	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return false
 	var ap: Dictionary = audio_players_by_id[id]
-	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return
-	if not ap["node"].playing: ap["node"].play()
+	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return false
+	if not ap["node"].playing and not ap["node"].stream_paused: ap["node"].play()
 	cur_music = id
 	cur_music_fade_time = fade_time
+	return true
 
 func music_fade_out(fade_time := 2.0) -> void:
 	cur_music = &""
@@ -171,24 +176,14 @@ func play(id: StringName, after_seconds := 0.0, must_not_playing := false) -> vo
 	ap["node"].play()
 	ap["last_played"] = Time.get_ticks_msec()
 
-func play_at_pos_2d(id: StringName, pos: Vector2, after_seconds := 0.0, must_not_playing := false) -> void:
+func play_at_pos(id: StringName, pos, after_seconds := 0.0, must_not_playing := false) -> void:
 	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
 	var ap: Dictionary = audio_players_by_id[id]
 	if must_not_playing and ap["node"].playing: return
 	if ap["last_played"] >= Time.get_ticks_msec() - after_seconds * 1000: return
-	if ap["node"] is Node2D: ap["node"].global_position = pos
-	else: printerr("AudioPlayer ", id, " is not a 2d node")
-	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return
-	ap["node"].play()
-	ap["last_played"] = Time.get_ticks_msec()
-
-func play_at_pos_3d(id: StringName, pos: Vector3, after_seconds := 0.0, must_not_playing := false) -> void:
-	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
-	var ap: Dictionary = audio_players_by_id[id]
-	if must_not_playing and ap["node"].playing: return
-	if ap["last_played"] >= Time.get_ticks_msec() - after_seconds * 1000: return
-	if ap["node"] is Node3D: ap["node"].global_position = pos
-	else: printerr("AudioPlayer ", id, " is not a 3d node")
+	if pos is Vector3 and ap["node"] is Node3D: ap["node"].global_position = pos
+	elif pos is Vector2 and ap["node"] is Node2D: ap["node"].global_position = pos
+	else: printerr("AudioPlayer ", id, " is not a node with position, or ", pos, " is not a Vector!")
 	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return
 	ap["node"].play()
 	ap["last_played"] = Time.get_ticks_msec()
