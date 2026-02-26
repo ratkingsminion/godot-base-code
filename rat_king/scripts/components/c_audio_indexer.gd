@@ -7,6 +7,8 @@ extends Component
 @export var is_music := false
 ## If false, ignore errors that happen when the node is not inside the tree
 @export var must_be_inside_tree := false
+## Set higher than zero to only play if listener/camera is near
+@export var _listener_min_dist := 0.0
 
 var audio_players_by_id: Dictionary[StringName, Dictionary] = {}
 var cur_music := &""
@@ -173,6 +175,10 @@ func play(id: StringName, after_seconds := 0.0, must_not_playing := false) -> vo
 	if must_not_playing and ap["node"].playing: return
 	if ap["last_played"] >= Time.get_ticks_msec() - after_seconds * 1000: return
 	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return
+	if _listener_min_dist > 0.0 and ap["node"] is Node3D:
+		var listener: Node3D = get_viewport().get_audio_listener_3d()
+		if not listener: listener = get_viewport().get_camera_3d()
+		if listener and listener.global_position.distance_to(ap["node"].global_position) > _listener_min_dist: return
 	ap["node"].play()
 	ap["last_played"] = Time.get_ticks_msec()
 
@@ -181,8 +187,14 @@ func play_at_pos(id: StringName, pos, after_seconds := 0.0, must_not_playing := 
 	var ap: Dictionary = audio_players_by_id[id]
 	if must_not_playing and ap["node"].playing: return
 	if ap["last_played"] >= Time.get_ticks_msec() - after_seconds * 1000: return
-	if pos is Vector3 and ap["node"] is Node3D: ap["node"].global_position = pos
-	elif pos is Vector2 and ap["node"] is Node2D: ap["node"].global_position = pos
+	if pos is Vector3 and ap["node"] is Node3D:
+		if _listener_min_dist > 0.0:
+			var listener: Node3D = get_viewport().get_audio_listener_3d()
+			if not listener: listener = get_viewport().get_camera_3d()
+			if listener and listener.global_position.distance_to(pos) > _listener_min_dist: return
+		ap["node"].global_position = pos
+	elif pos is Vector2 and ap["node"] is Node2D:
+		ap["node"].global_position = pos
 	else: printerr("AudioPlayer ", id, " is not a node with position, or ", pos, " is not a Vector!")
 	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return
 	ap["node"].play()
