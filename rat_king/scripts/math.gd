@@ -11,6 +11,9 @@ static func wrapi_array(t: int, array: Array) -> int:
 	if not array: return 0
 	return t - floor(t / float(array.size())) * array.size()
 
+static func remap_clamped(value: float, min_in: float, max_in: float, min_out: float, max_out: float) -> float:
+	return remap(clampf(value, min_in, max_in), min_in, max_in, min_out, max_out)
+
 ### directions
 
 static func get_right(node: Node3D) -> Vector3:
