@@ -17,27 +17,27 @@ static func timer(node: Node, duration: float, on_complete: Callable) -> Tween:
 	t.tween_callback(on_complete)
 	return t
 
-static func do_01(node: Node, duration: float, on_update: Callable, trans := Tween.TRANS_LINEAR, ease := Tween.EASE_IN_OUT) -> Tween:
+static func do_01(node: Node, duration: float, on_update: Callable, trans := Tween.TRANS_LINEAR, easing := Tween.EASE_IN_OUT) -> Tween:
 	if node == null or duration < 0.0: return null
-	var t := node.create_tween().set_trans(trans).set_ease(ease)
+	var t := node.create_tween().set_trans(trans).set_ease(easing)
 	t.tween_method(on_update, 0.0, 1.0, duration)
 	return t
 
-static func do(node: Node, start, end, duration: float, on_update: Callable, trans := Tween.TRANS_LINEAR, ease := Tween.EASE_IN_OUT) -> Tween:
+static func do(node: Node, start, end, duration: float, on_update: Callable, trans := Tween.TRANS_LINEAR, easing := Tween.EASE_IN_OUT) -> Tween:
 	if node == null or duration < 0.0: return null
-	var t := node.create_tween().set_trans(trans).set_ease(ease)
+	var t := node.create_tween().set_trans(trans).set_ease(easing)
 	t.tween_method(func(f: float) -> void: on_update.call(lerp(start, end, f)), 0.0, 1.0, duration)
 	return t
 
-static func do_01_curve(node: Node, duration: float, curve: Curve, on_update: Callable, trans := Tween.TRANS_LINEAR, ease := Tween.EASE_IN_OUT) -> Tween:
+static func do_01_curve(node: Node, duration: float, curve: Curve, on_update: Callable, trans := Tween.TRANS_LINEAR, easing := Tween.EASE_IN_OUT) -> Tween:
 	if node == null or duration < 0.0 or curve == null: return null
-	var t := node.create_tween().set_trans(trans).set_ease(ease)
+	var t := node.create_tween().set_trans(trans).set_ease(easing)
 	t.tween_method(func(f: float) -> void: on_update.call(curve.sample(f)), 0.0, 1.0, duration)
 	return t
 
-static func do_curve(node: Node, start, end, duration: float, curve: Curve, on_update: Callable, trans := Tween.TRANS_LINEAR, ease := Tween.EASE_IN_OUT) -> Tween:
+static func do_curve(node: Node, start, end, duration: float, curve: Curve, on_update: Callable, trans := Tween.TRANS_LINEAR, easing := Tween.EASE_IN_OUT) -> Tween:
 	if node == null or duration < 0.0 or curve == null: return null
-	var t := node.create_tween().set_trans(trans).set_ease(ease)
+	var t := node.create_tween().set_trans(trans).set_ease(easing)
 	t.tween_method(func(f: float) -> void: on_update.call(lerp(start, end, curve.sample(f))), 0.0, 1.0, duration)
 	return t
 
@@ -81,7 +81,8 @@ static func tree_do_curve(start, end, duration: float, curve: Curve, on_update: 
 
 ###
 
-# easings from: https://github.com/ai/easings.net/blob/master/src/easings/easingsFunctions.ts
+# easings from https://github.com/ai/easings.net/blob/master/src/easings/easingsFunctions.ts
+# and https://github.com/coronalabs/framework-easing/blob/master/easing.lua#L74
 
 const _c1 := 1.70158
 const _c2 := _c1 * 1.525
@@ -107,10 +108,13 @@ static func in_quad(t: float) -> float:
 	return t * t
 
 static func out_quad(t: float) -> float:
-	return 1.0 - (1.0 - t) * (1.0 - t)
+	return t * (2.0 - t)
 
 static func in_out_quad(t: float) -> float:
 	return 2.0 * t * t if t < 0.5 else 1.0 - pow(-2.0 * t + 2.0, 2.0) * 0.5
+
+static func out_in_quad(t: float) -> float:
+	return t * (2.0 - t * 2.0) if t < 0.5 else 0.5 + (t * 2.0 - 1.0) * (t - 0.5)
 
 static func in_cubic(t: float) -> float:
 	return t * t * t
@@ -120,6 +124,9 @@ static func out_cubic(t: float) -> float:
 
 static func in_out_cubic(t: float) -> float:
 	return 4.0 * t * t * t if t < 0.5 else 1.0 - pow(-2.0 * t + 2.0, 3.0) * 0.5
+
+static func out_in_cubic(t: float) -> float:
+	return out_cubic(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_cubic(t * 2.0 - 1.0) * 0.5
 
 static func in_quart(t: float) -> float:
 	var tt := t * t
@@ -132,6 +139,9 @@ static func in_out_quart(t: float) -> float:
 	var tt := t * t
 	return 8.0 * tt * tt if t < 0.5 else 1.0 - pow(-2.0 * t + 2.0, 4.0) * 0.5
 
+static func out_in_quart(t: float) -> float:
+	return out_quart(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_quart(t * 2.0 - 1.0) * 0.5
+
 static func in_quint(t: float) -> float:
 	var tt := t * t
 	return tt * tt * t
@@ -143,6 +153,9 @@ static func in_out_quint(t: float) -> float:
 	var tt := t * t
 	return 16.0 * tt * tt * t if t < 0.5 else 1.0 - pow(-2.0 * t + 2.0, 5.0) * 0.5
 
+static func out_in_quint(t: float) -> float:
+	return out_quint(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_quint(t * 2.0 - 1.0) * 0.5
+
 static func in_sin(t: float) -> float:
 	return 1.0 - cos((t * PI) * 0.5)
 
@@ -151,6 +164,9 @@ static func out_sin(t: float) -> float:
 
 static func in_out_sin(t: float) -> float:
 	return -(cos(PI * t) - 1.0) * 0.5
+
+static func out_in_sin(t: float) -> float:
+	return out_sin(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_sin(t * 2.0 - 1.0) * 0.5
 
 static func in_expo(t: float) -> float:
 	return 0.0 if t == 0.0 else pow(2.0, 10.0 * t - 10.0)
@@ -164,6 +180,9 @@ static func in_out_expo(t: float) -> float:
 		else pow(2.0, 20.0 * t - 10.0) * 0.5 if t < 0.5 \
 		else (2.0 - pow(2.0, -20.0 * t + 10.0)) * 0.5
 
+static func out_in_expo(t: float) -> float:
+	return out_expo(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_expo(t * 2.0 - 1.0) * 0.5
+
 static func in_circ(t: float) -> float:
 	return 1.0 - sqrt(1.0 - pow(t, 2.0))
 
@@ -173,6 +192,9 @@ static func out_circ(t: float) -> float:
 static func in_out_circ(t: float) -> float:
 	return (1.0 - sqrt(1 - pow(2.0 * t, 2.0))) * 0.5 if t < 0.5 \
 		else (sqrt(1.0 - pow(-2.0 * t + 2.0, 2.0)) + 1.0) * 0.5
+
+static func out_in_circ(t: float) -> float:
+	return out_circ(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_circ(t * 2.0 - 1.0) * 0.5
 
 static func in_back(t: float) -> float:
 	var tt := t * t
@@ -184,6 +206,9 @@ static func out_back(t: float) -> float:
 static func in_out_back(t: float) -> float:
 	return (pow(2.0 * t, 2.0) * ((_c2 + 1.0) * 2.0 * t - _c2)) * 0.5 if t < 0.5 \
 		else (pow(2.0 * t - 2.0, 2.0) * ((_c2 + 1.0) * (t * 2.0 - 2.0) + _c2) + 2.0) * 0.5
+
+static func out_in_back(t: float) -> float:
+	return out_back(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_back(t * 2.0 - 1.0) * 0.5
 
 static func in_elastic(t: float) -> float:
 	return 0.0 if t == 0.0 \
@@ -200,6 +225,9 @@ static func in_out_elastic(t: float) -> float:
 		else 1.0 if t == 1.0 \
 		else -(pow(2.0, 20.0 * t - 10.0) * sin((20.0 * t - 11.125) * _c5)) * 0.5 if t < 0.5 \
 		else (pow(2.0, -20.0 * t + 10.0) * sin((20.0 * t - 11.125) * _c5)) * 0.5 + 1.0
+
+static func out_in_elastic(t: float) -> float:
+	return out_elastic(t * 2.0) * 0.5 if t < 0.5 else 0.5 + in_elastic(t * 2.0 - 1.0) * 0.5
 
 static func in_bounce(t: float) -> float:
 	return 1.0 - _bounce_out(1.0 - t)
@@ -220,10 +248,17 @@ static func out_spring(t: float) -> float:
 static func in_spring(t: float) -> float:
 	return 1.0 - out_spring(1.0 - t) + 0.0
 
+static func in_out_spring(t: float) -> float:
+	if t < 0.5: return in_spring(t * 2.0)
+	return out_spring(t * 2.0 - 1.0)
+
 static func out_in_spring(t: float) -> float:
 	if t < 1.0 * 0.5: return out_spring(t * 2.0)
 	return in_spring(t * 2.0 - 1.0)
 
-static func in_out_spring(t: float) -> float:
-	if t < 1.0 * 0.5: return in_spring(t * 2.0)
-	return out_spring(t * 2.0 - 1.0)
+static func continuous_loop(t: float) -> float:
+	return t * 2.0 if t < 0.5 else (1.0 - t) * 2.0
+
+static func out_in_sqrt(t: float) -> float:
+	t = clampf(t, 0.0, 1.0)
+	return t if t == 0.0 or t == 1.0 else sqrt(t * 0.5) if t < 0.5 else 1.0 - sqrt(0.5 - t * 0.5) 
