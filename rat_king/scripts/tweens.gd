@@ -104,6 +104,11 @@ static func _bounce_out(t: float) -> float:
 	t -= 2.625 / d1
 	return n1 * t * t + 0.984375
 
+static func combined(t: float, second: Callable, p := 0.5, first := Callable()) -> float:
+	var a: float = first.call(t) if first else t
+	var b: float = second.call(t) if second else t
+	return lerpf(a, b, p)
+
 static func in_quad(t: float) -> float:
 	return t * t
 
