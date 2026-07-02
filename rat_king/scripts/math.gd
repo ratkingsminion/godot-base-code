@@ -104,6 +104,13 @@ static func frin_lerp_angle(a: float, b: float, t: float, delta: float, hertz :=
 static func basis_frin_slerp(a: Basis, b: Basis, t: float, delta: float, hertz = 60.0) -> Basis:
 	return a.orthonormalized().slerp(b.orthonormalized(), 1.0 - ((1.0 - t) ** (delta * hertz)))
 
+###
+
+# from https://www.reddit.com/r/godot/comments/12hx1kg/angle_calculation_is_driving_me_insane/
+static func quat_rotate_towards(a: Quaternion, b: Quaternion, angle: float) -> Quaternion:
+	var angle_to := a.angle_to(b)
+	return a.slerp(b, angle/angle_to) if angle_to > angle else b
+
 ### smooth damping
 
 # from https://github.com/Unity-Technologies/UnityCsReference/blob/master/Runtime/Export/Math/Mathf.cs
