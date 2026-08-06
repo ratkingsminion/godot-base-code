@@ -130,11 +130,11 @@ func _process(delta: float) -> void:
 func has_audio(id: StringName) -> bool:
 	return id in audio_players_by_id
 
-func set_playing(id: StringName, play: bool) -> void:
+func set_playing(id: StringName, playing: bool) -> void:
 	if not audio_players_by_id.has(id): printerr("Could not find AudioPlayer ", id); return
 	var ap: Dictionary = audio_players_by_id[id]
 	if not must_be_inside_tree and not ap["node"].is_inside_tree(): return
-	if play: ap["node"].play()
+	if playing: ap["node"].play()
 	else: ap["node"].stop()
 
 func stop(id: StringName = &"") -> void:
