@@ -37,9 +37,14 @@ func _process(delta: float) -> void:
 		wobble.factor = move_toward(wobble.factor, target_factor, delta * 10.0)
 		
 		if wobble.factor <= 0.0 and wobble.seconds <= 0.0:
-			if wobble.type == Type.SCALE: wobble.target.scale = wobble.original_scale
-			if wobble.type == Type.ROTATE: wobble.target.rotation = wobble.original_rotation
-			if wobble.type == Type.MOVE_HOP: wobble.target.position = wobble.original_position
+			if wobble.target is Control:
+				if wobble.type == Type.SCALE: wobble.target.offset_transform_scale = wobble.original_scale
+				if wobble.type == Type.ROTATE: wobble.target.offset_transform_rotation = wobble.original_rotation
+				if wobble.type == Type.MOVE_HOP: wobble.target.target.offset_transform_position = wobble.original_position
+			else:
+				if wobble.type == Type.SCALE: wobble.target.scale = wobble.original_scale
+				if wobble.type == Type.ROTATE: wobble.target.rotation = wobble.original_rotation
+				if wobble.type == Type.MOVE_HOP: wobble.target.position = wobble.original_position
 			_cur_wobbles.remove_at(idx)
 			continue
 		
@@ -50,21 +55,25 @@ func _process(delta: float) -> void:
 				wobble.factor)
 			if wobble.target is Node3D:
 				wobble.target.scale = Math.vec3_lerp(original_scale, original_scale * scale, wobble.axis)
-			elif wobble.target is Node2D or wobble.target is Control:
+			elif wobble.target is Node2D:
 				wobble.target.scale = Math.vec2_lerp(original_scale, original_scale * scale, wobble.axis)
+			elif wobble.target is Control:
+				wobble.target.offset_transform_scale = Math.vec2_lerp(original_scale, original_scale * scale, wobble.axis)
 		
 		elif wobble.type == Type.ROTATE:
 			if wobble.target is Node3D:
 				wobble.target.rotation = wobble.original_rotation
 				wobble.target.rotate(wobble.axis, wobble.strength * wobble.factor * sin(10 * wobble.time) * 0.5)
-			elif wobble.target is Node2D or wobble.target is Control:
+			elif wobble.target is Node2D:
 				wobble.target.rotation = wobble.original_rotation + wobble.strength * wobble.factor * sin(10 * wobble.time) * 0.5
-			# TODO target type Control
+			elif wobble.target is Control:
+				wobble.target.offset_transform_rotation = wobble.original_rotation + wobble.strength * wobble.factor * sin(10 * wobble.time) * 0.5
 		
 		elif wobble.type == Type.MOVE_HOP:
 			var original_position = wobble.original_position
 			var pos := remap(sin(20.0 * wobble.time), -1.0, 1.0, 0.0, wobble.strength)
-			wobble.target.position = original_position + wobble.factor * pos * wobble.axis
+			if wobble.target is Control: wobble.target.offset_transform_position = original_position + wobble.factor * pos * wobble.axis
+			else: wobble.target.position = original_position + wobble.factor * pos * wobble.axis
 
 static func stop(node: Node) -> bool:
 	var stopped := false
@@ -75,14 +84,14 @@ static func stop(node: Node) -> bool:
 			stopped = true
 	return stopped
 
-static func wobble_x(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start := true) -> void:
-	wobble(node, strength, seconds, speed, Vector3.RIGHT, type, rnd_start)
+static func wobble_x(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start := true) -> Wobble:
+	return wobble(node, strength, seconds, speed, Vector3.RIGHT, type, rnd_start)
 
-static func wobble_y(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start  := true) -> void:
-	wobble(node, strength, seconds, speed, Vector3.UP, type, rnd_start)
+static func wobble_y(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start  := true) -> Wobble:
+	return wobble(node, strength, seconds, speed, Vector3.UP, type, rnd_start)
 
-static func wobble_z(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start  := true) -> void:
-	wobble(node, strength, seconds, speed, Vector3.MODEL_FRONT, type, rnd_start)
+static func wobble_z(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, type := Type.SCALE, rnd_start  := true) -> Wobble:
+	return wobble(node, strength, seconds, speed, Vector3.MODEL_FRONT, type, rnd_start)
 
 static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, axis = Vector3.ONE, type := Type.SCALE, rnd_start  := true) -> Wobble:
 	if not node or strength == 0.0 or seconds <= 0.0: 
@@ -98,7 +107,7 @@ static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, ax
 	if list:
 		list[0].seconds = seconds
 		return list[0]
-		
+	
 	var wobble := Wobble.new()
 	wobble.type = type
 	wobble.factor = 0.0
@@ -106,11 +115,14 @@ static func wobble(node: Node, strength := 1.0, seconds := 1.0, speed := 1.0, ax
 	wobble.start_seconds = seconds
 	wobble.seconds = seconds
 	wobble.strength = strength
-	wobble.original_scale = node.scale
-	wobble.original_rotation = node.rotation
-	wobble.original_position = node.position
+	wobble.original_scale = node.offset_transform_scale if node is Control else node.scale
+	wobble.original_rotation = node.offset_transform_rotation if node is Control else node.rotation
+	wobble.original_position = node.offset_transform_position if node is Control else node.position
 	wobble.time = randf() * PI if rnd_start else 0.0
 	wobble.speed = speed
+	print(node.name," - ", wobble.original_rotation)
+	if node is Control:
+		node.offset_transform_enabled = true
 	if node is Node3D and axis is Vector3:
 		wobble.axis = axis
 	elif type == Type.ROTATE:
