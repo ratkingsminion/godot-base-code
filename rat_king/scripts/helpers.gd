@@ -28,8 +28,8 @@ static func test_csv_file(file: String) -> void:
 			printerr("WRONG QUOTE COUNT IN ", file, ": [LINE ", l, "] ", line.count("\""))
 		l += 1
 	f.close()
-	
-static func count_csv_file_words(file: String, idx := 0) -> int:
+
+static func count_csv_file_words(file: String, print_word_count := false, idx := 0) -> int:
 	var rq := RegEx.create_from_string(r"\"(.*?(?<!\\))\"")
 	var rw := RegEx.create_from_string("[A-Za-z]+")
 	var wc := 0
@@ -38,7 +38,8 @@ static func count_csv_file_words(file: String, idx := 0) -> int:
 		var contents := rq.search_all(f.get_line())
 		if contents and contents.size() >= idx:
 			wc += rw.search_all(contents[idx].get_string()).size()
-	print("Word count of ", file, " [", idx, "]: ", wc)
+	if print_word_count:
+		print("Word count of ", file, " [", idx, "]: ", wc)
 	f.close()
 	return wc
 
@@ -57,7 +58,7 @@ static func take_screenshot(path := "./screenshot", as_jpg := true) -> void:
 	path = path + "_" + timestamp + (".jpg" if as_jpg else ".png")
 	var res := image.save_jpg(path) if as_jpg else image.save_png(path)
 	if res == OK:
-		print("Screenshot taken: ", path)
+		GameUi.log(Main.tr("UI_LOG_CREATE_SCREENSHOT").format({ "path": path }))
 
 ### find nodes and classes
 
@@ -66,10 +67,12 @@ static func get_all_children(node: Node, include_self := false, include_internal
 	var result: Array[Node] = []
 	if include_self:
 		result.append(node)
-	while to_check.size() > 0:
-		var c := (to_check.pop_front() as Node).get_children(include_internal) # pop_front is slow unfortunately
+	var i := 0
+	while i < to_check.size():
+		var c := to_check[i].get_children(include_internal)
 		result.append_array(c)
 		to_check.append_array(c)
+		i += 1
 	return result
 
 #
@@ -129,14 +132,29 @@ static func scroll_container_to_end(container: Control, forced := false) -> void
 	if not forced and container.get_meta("scroll_last_count", 0) == count:
 		return
 	var _scroller: ScrollContainer = Helpers.find_in_all_parents(container, ScrollContainer)
-	_scroller.scroll_vertical = int(container.size.y)
+	if _scroller: _scroller.scroll_vertical = int(container.size.y)
+	else: printerr("missing ScrollContainer!")
 	container.set_meta("scroll_last_count", count)
 	
 ### waiting and timing
 
 ## coroutine
+static func tree_do_next_physics_frame(on_complete: Callable) -> void:
+	await _tree.physics_frame
+	on_complete.call()
+
+## coroutine
+static func do_next_physics_frame(node: Node, on_complete: Callable) -> void:
+	if not is_instance_valid(node): return
+	await node.get_tree().physics_frame
+	if is_instance_valid(node): on_complete.call()
+
+## coroutine
 static func tree_do_next_frame(on_complete: Callable) -> void:
+	#var id = on_complete.get_object_id()
+	#print("AAA ", id, " ", on_complete.get_object().get_path())
 	await _tree.process_frame
+	#print("BBB ", id, " ", on_complete.get_object())
 	on_complete.call()
 
 ## coroutine
@@ -148,17 +166,21 @@ static func do_next_frame(node: Node, on_complete: Callable) -> void:
 ## coroutine
 static func tree_timeout(seconds: float) -> void:
 	if seconds <= 0.0: return
-	if _tree == null: printerr("Trying to timeout without tree"); return
-	await _tree.create_timer(seconds).timeout
+	if not _tree: printerr("Trying to timeout without tree"); return
+	var timer := _tree.create_timer(seconds)
+	#print("created tree timer ", timer, " ... ", get_stack())
+	await timer.timeout
 
 ## coroutine
 static func timeout(node: Node, seconds: float) -> void:
 	if seconds <= 0.0: return
-	if node == null: printerr("Trying to timeout without node"); return
+	if not node: printerr("Trying to timeout without node"); return
+	if not node.is_inside_tree(): printerr("Could not start timeout, node is not inside tree"); return
 	var timer = Timer.new()
 	timer.one_shot = true
 	node.add_child(timer)
 	timer.start(seconds)
+	#print("created timer ", timer, " ... ", get_stack())
 	await timer.timeout
 	if timer: timer.queue_free()
 
@@ -169,7 +191,7 @@ static func cur_time(multiplier := 1.0) -> float:
 
 static func create_prefab(proto_node: Node, free_proto := false) -> PackedScene:
 	if not proto_node:
-		printerr("Trying to create prefab from null")
+		printerr("Trying to create prefab from null ", get_stack())
 		return null
 	var scene := PackedScene.new()
 	for c: Node in Helpers.get_all_children(proto_node, false, true):
@@ -184,6 +206,27 @@ static func create_node_3d(parent: Node, node_name: String) -> Node3D:
 	node.name = node_name
 	if parent: parent.add_child(node)
 	return node
+
+###
+
+static func clean_via_feature(node: Node, before_free: Callable = Callable()) -> void:
+	for tk: Node in node.find_children("*NO-INC*"):
+		if before_free: before_free.call(tk)
+		tk.queue_free()
+	if OS.has_feature("demo"):
+		for tk: Node in node.find_children("*FULL-O*"):
+			if before_free: before_free.call(tk)
+			tk.queue_free()
+	elif OS.has_feature("editor") or OS.has_feature("full"):
+		for tk: Node in node.find_children("*DEMO-O*"):
+			if before_free: before_free.call(tk)
+			tk.queue_free()
+
+static func string_to_tags(str: String) -> Array[StringName]:
+	var res: Array[StringName]
+	for t: String in str.replace_chars(",\t\r\n", " ".unicode_at(0)).split(" ", false):
+		res.append(t.to_lower())
+	return res
 	
 
 ### signals
