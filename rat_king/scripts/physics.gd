@@ -21,38 +21,39 @@ static func wait_for() -> void:
 ###
 
 ## local to this node, even the direction!
-static func ray_cast(node: Node3D, from: Vector3, dir: Vector3, mask :=  0xFFFFFFFF) -> Dictionary:
-	if node == null: printerr("Trying to cast without node"); return {}
+static func ray_cast(node: Node3D, from: Vector3, dir: Vector3, mask := 0xFFFFFFFF) -> Dictionary:
+	if node == null: printerr("Trying to raycast without node"); return {}
 	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = node.to_global(from)
 	ray_query.to = node.to_global(from + dir)
+	ray_query.collide_with_areas = false
 	ray_query.collision_mask = mask
 	return node.get_world_3d().direct_space_state.intersect_ray(ray_query)
 
 ## local to this node, even the direction!
-static func line_cast(node: Node3D, from: Vector3, to: Vector3, mask :=  0xFFFFFFFF) -> Dictionary:
-	if node == null: printerr("Trying to cast without node"); return {}
+static func line_cast(node: Node3D, from: Vector3, to: Vector3, mask := 0xFFFFFFFF) -> Dictionary:
+	if node == null: printerr("Trying to linecast without node ", get_stack()); return {}
 	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = node.to_global(from)
 	ray_query.to = node.to_global(to)
+	ray_query.collide_with_areas = false
 	ray_query.collision_mask = mask
 	return node.get_world_3d().direct_space_state.intersect_ray(ray_query)
 
 ## local to this node, even the direction!
-static func shape_cast(node: Node3D, shape: Shape3D, from: Vector3, dir: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> PackedFloat32Array:
-	if node == null or shape == null: printerr("Trying to cast without node or shape"); return []
+static func shape_cast(node: Node3D, shape: Shape3D, from: Vector3, dir: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> float:
+	if node == null or shape == null: printerr("Trying to shapecast without node or shape"); return -1.0
 	var shape_query := PhysicsShapeQueryParameters3D.new()
 	shape_query.shape = shape
-	shape_query.transform = Transform3D(basis, node.to_global(from))
+	shape_query.transform = Transform3D(basis * node.basis, node.to_global(from))
 	#shape_query.margin = shape.margin
 	shape_query.motion = node.to_global(from + dir) - shape_query.transform.origin
-	shape_query.collide_with_areas = false
+	shape_query.collide_with_areas = false 
 	shape_query.collision_mask = mask
 	var motion := node.get_world_3d().direct_space_state.cast_motion(shape_query)
-	if motion[0] == 1.0: return []
-	return motion
+	return motion[0]
 
 static func get_rest_info(node: Node3D, shape: Shape3D, pos: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> Dictionary:
 	if node == null or shape == null: printerr("Trying to cast without node or shape"); return {}
@@ -64,10 +65,10 @@ static func get_rest_info(node: Node3D, shape: Shape3D, pos: Vector3, basis := B
 	return node.get_world_3d().direct_space_state.get_rest_info(shape_query)
 
 static func is_shape_intersecting(node: Node3D, shape: Shape3D, pos: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> Array[Dictionary]:
-	if node == null or shape == null: printerr("Trying to cast without node or shape"); return []
+	if node == null or shape == null: printerr("Trying to shapeintersect without node or shape"); return []
 	var shape_query := PhysicsShapeQueryParameters3D.new()
 	shape_query.shape = shape
-	shape_query.transform = Transform3D(basis, node.to_global(pos))
+	shape_query.transform = Transform3D(basis * node.basis, node.to_global(pos))
 	#shape_query.margin = shape.margin
 	shape_query.collide_with_areas = false
 	shape_query.collision_mask = mask	
@@ -77,7 +78,7 @@ static func is_shape_intersecting(node: Node3D, shape: Shape3D, pos: Vector3, ba
 
 ## global position and direction
 static func world_3d_ray_cast(from: Vector3, dir: Vector3, mask := 0xFFFFFFFF) -> Dictionary:
-	if _world_3d == null: printerr("Trying to cast without world"); return {}
+	if _world_3d == null: printerr("Trying to raycast without world"); return {}
 	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = from
@@ -88,7 +89,7 @@ static func world_3d_ray_cast(from: Vector3, dir: Vector3, mask := 0xFFFFFFFF) -
 
 ## global position and direction
 static func world_3d_line_cast(from: Vector3, to: Vector3, mask := 0xFFFFFFFF) -> Dictionary:
-	if _world_3d == null: printerr("Trying to cast without world"); return {}
+	if _world_3d == null: printerr("Trying to linecast without world"); return {}
 	var ray_query := PhysicsRayQueryParameters3D.new()
 	ray_query.hit_back_faces = false
 	ray_query.from = from
@@ -98,9 +99,9 @@ static func world_3d_line_cast(from: Vector3, to: Vector3, mask := 0xFFFFFFFF) -
 	return _world_3d.direct_space_state.intersect_ray(ray_query)
 
 ## global position and direction
-static func world_3d_shape_cast(shape: Shape3D, from: Vector3, dir: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> PackedFloat32Array:
-	if _world_3d == null: printerr("Trying to cast without world"); return []
-	if shape == null: printerr("Trying to cast without shape"); return []
+static func world_3d_shape_cast(shape: Shape3D, from: Vector3, dir: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> float:
+	if _world_3d == null: printerr("Trying to shapecast without world"); return -1.0
+	if shape == null: printerr("Trying to shapecast without shape"); return -1.0
 	var shape_query = PhysicsShapeQueryParameters3D.new()
 	shape_query.shape = shape
 	shape_query.transform = Transform3D(basis, from)
@@ -109,8 +110,7 @@ static func world_3d_shape_cast(shape: Shape3D, from: Vector3, dir: Vector3, bas
 	shape_query.collide_with_areas = false 
 	shape_query.collision_mask = mask
 	var motion := _world_3d.direct_space_state.cast_motion(shape_query)
-	if motion[0] == 1.0: return []
-	return motion
+	return motion[0]
 
 static func world_get_rest_info(shape: Shape3D, pos: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> Dictionary:
 	if _world_3d == null: printerr("Trying to cast without world"); return {}
@@ -122,13 +122,13 @@ static func world_get_rest_info(shape: Shape3D, pos: Vector3, basis := Basis(), 
 	shape_query.collision_mask = mask
 	return _world_3d.direct_space_state.get_rest_info(shape_query)
 
-static func world_3d_is_shape_intersecting(shape: Shape3D, pos: Vector3, basis := Basis(), mask := 0xFFFFFFFF) -> Array[Dictionary]:
-	if _world_3d == null: printerr("Trying to cast without world"); return []
-	if shape == null: printerr("Trying to cast without shape"); return []
+static func world_3d_is_shape_intersecting(shape: Shape3D, pos: Vector3, basis := Basis(), mask := 0xFFFFFFFF, areas := false) -> Array[Dictionary]:
+	if _world_3d == null: printerr("Trying to shapeintersect without world"); return []
+	if shape == null: printerr("Trying to shapeintersect without shape"); return []
 	var shape_query := PhysicsShapeQueryParameters3D.new()
 	shape_query.shape = shape
 	shape_query.transform = Transform3D(basis, pos)
 	#shape_query.margin = shape.margin
-	shape_query.collide_with_areas = false
+	shape_query.collide_with_areas = areas
 	shape_query.collision_mask = mask
 	return _world_3d.direct_space_state.intersect_shape(shape_query)
